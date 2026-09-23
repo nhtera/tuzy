@@ -10,9 +10,11 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/nhtera/tuzy/internal/api"
 	"github.com/nhtera/tuzy/internal/auth"
+	"github.com/nhtera/tuzy/internal/names"
 )
 
 // tokenStore is swappable in tests.
@@ -52,6 +54,24 @@ func apiClient(cmd *cobra.Command) (*api.Client, *runtimeEnv, error) {
 	}
 	env.token = tok
 	return api.New(env.server, tok, userAgent()), env, nil
+}
+
+// isInteractive: both stdin and stdout are terminals (prompts make sense).
+func isInteractive(cmd *cobra.Command) bool {
+	isTTY := func(v any) bool {
+		f, ok := v.(*os.File)
+		if !ok {
+			return false
+		}
+		return term.IsTerminal(int(f.Fd())) // not ModeCharDevice: /dev/null is a char device too
+	}
+	return isTTY(cmd.InOrStdin()) && isTTY(cmd.OutOrStdout())
+}
+
+// nameResolver resolves tunnel names against the server (see names.Resolver).
+func nameResolver(cmd *cobra.Command, c *api.Client) *names.Resolver {
+	p := newPrompter(cmd)
+	return &names.Resolver{API: c, Interactive: isInteractive(cmd), Ask: p.ask, Out: cmd.OutOrStdout()}
 }
 
 // deviceLabel names a login token after this machine, e.g. "tien-mbp (darwin)".

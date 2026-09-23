@@ -3,7 +3,8 @@
  * Tracks send credit (stream + connection) so response bodies respect the edge's windows, and
  * grants request-body credit as the "local app" consumes (immediately, unless paused).
  */
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
+import { hashToken } from "../../src/lib/tokens";
 import {
   CONN_WINDOW,
   decodeFrame,
@@ -74,8 +75,9 @@ export class FakeAgent {
   /** Opens the WebSocket (no HELLO yet). Returns the raw Response when not upgraded. */
   static async open(
     name: string,
-    opts: { instance?: string; force?: boolean; token?: string } = {},
+    opts: { instance?: string; force?: boolean; token?: string; reserve?: boolean } = {},
   ): Promise<{ agent?: FakeAgent; res: Response }> {
+    if (opts.reserve !== false) await ensureReservation(name, opts.token ?? TOKEN);
     const instance = opts.instance ?? newInstance();
     const qs = new URLSearchParams({ name, instance, ...(opts.force ? { force: "1" } : {}) });
     const res = await exports.default.fetch(`https://${BASE}/api/v1/connect?${qs}`, {
@@ -89,7 +91,7 @@ export class FakeAgent {
   }
 
   /** Opens and completes HELLO → READY. */
-  static async connect(name: string, opts: { instance?: string; force?: boolean; token?: string } = {}): Promise<FakeAgent> {
+  static async connect(name: string, opts: { instance?: string; force?: boolean; token?: string; reserve?: boolean } = {}): Promise<FakeAgent> {
     const { agent, res } = await FakeAgent.open(name, opts);
     if (!agent) throw new Error(`connect failed: ${res.status} ${await res.text()}`);
     await agent.hello();
@@ -239,6 +241,21 @@ export class FakeAgent {
     this.creditWakers = [];
     w.forEach((f) => f());
   }
+}
+
+/**
+ * Connects now require the name to be reserved by the token's user: reserve it directly in D1
+ * (INSERT OR IGNORE — an existing reservation by someone else is left alone).
+ */
+export async function ensureReservation(name: string, token: string): Promise<void> {
+  const row = await env.DB.prepare("SELECT user_id FROM tokens WHERE token_hash = ?1").bind(await hashToken(token)).first<{ user_id: string }>();
+  if (!row) return;
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO reservations (name, user_id, gen, is_default, created_at)
+     VALUES (?1, ?2, lower(hex(randomblob(8))), NOT EXISTS (SELECT 1 FROM reservations WHERE user_id = ?2), 0)`,
+  )
+    .bind(name, row.user_id)
+    .run();
 }
 
 export function concat(chunks: Uint8Array[]): Uint8Array {

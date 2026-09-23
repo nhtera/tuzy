@@ -89,3 +89,18 @@ func TestNeverFollowsRedirects(t *testing.T) {
 		t.Fatal("Authorization was forwarded through a redirect")
 	}
 }
+
+func TestQueryStringIsNotEscapedIntoThePath(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/names" || r.URL.Query().Get("live") != "1" {
+			w.WriteHeader(404)
+			return
+		}
+		_, _ = w.Write([]byte(`{"names":[],"used":0,"limit":10}`))
+	}))
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	if _, err := New(u, "tzy_x", "").ListNames(context.Background(), true); err != nil {
+		t.Fatalf("ListNames(live): %v", err)
+	}
+}

@@ -384,7 +384,7 @@ func TestStatusTable(t *testing.T) {
 		{403, `{"error":{"code":"forbidden","message":"not your name"}}`, "not your name"},
 		{404, `{"error":{"code":"name_not_reserved"}}`, "you don't own `shop`: run `tuzy names add shop`"},
 		{409, `{"error":{"code":"name_in_use"}}`, "rerun with --force"},
-		{410, `{"error":{"code":"name_released","new_name":"store"}}`, "`shop` was renamed to `store`"},
+		{410, `{"error":{"code":"name_released","new_name":"store"}}`, "was renamed to `store`"}, // hint loop: gives up after 3 hops
 		{410, `{"error":{"code":"name_released"}}`, "`shop` was removed"},
 	}
 	for _, tc := range cases {
@@ -430,6 +430,26 @@ func TestGoawayRenamedReconnectsAsNewName(t *testing.T) {
 	next := edge.next(3 * time.Second)
 	if next.query.Get("name") != "store" || a.client.Name() != "store" {
 		t.Fatalf("reconnected as %q", next.query.Get("name"))
+	}
+}
+
+func TestGoneWithRenameHintFollowsNewName(t *testing.T) {
+	edge := newFakeEdge(t)
+	edge.reject(410, `{"error":{"code":"name_released","new_name":"store"}}`, nil)
+	edge.mu.Lock()
+	edge.onlyName = "shop"
+	edge.mu.Unlock()
+	var renamed atomic.Int32
+	a := startAgent(t, edge.url(), "http://127.0.0.1:1", func(o *Options) {
+		o.OnEvent = func(e Event) {
+			if e.Kind == EventRenamed && e.OldName == "shop" && e.Name == "store" {
+				renamed.Add(1)
+			}
+		}
+	})
+	next := edge.next(3 * time.Second)
+	if next.query.Get("name") != "store" || a.client.Name() != "store" || renamed.Load() != 1 {
+		t.Fatalf("connected as %q (renamed events %d)", next.query.Get("name"), renamed.Load())
 	}
 }
 

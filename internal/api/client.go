@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -66,7 +67,9 @@ func (c *Client) WithToken(token string) *Client {
 
 func (c *Client) do(ctx context.Context, method, path string, in, out any) error {
 	u := *c.base
-	u.Path = "/api/v1" + path
+	p, query, _ := strings.Cut(path, "?")
+	u.Path = "/api/v1" + p
+	u.RawQuery = query
 	var body io.Reader
 	if in != nil {
 		b, err := json.Marshal(in)

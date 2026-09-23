@@ -8,8 +8,8 @@ import { newId, nowSec } from "./ids";
 export type OutboxAction =
   | { action: "revokeToken"; payload: { tokenId: string } }
   | { action: "revokeUser"; payload: { userId: string } }
-  | { action: "goaway"; payload: { reason: GoawayReason; newName?: string; message?: string; gen?: number } }
-  | { action: "setSuspended"; payload: { suspended: boolean; gen?: number } }
+  | { action: "goaway"; payload: { reason: GoawayReason; newName?: string; message?: string; gen?: string } }
+  | { action: "setSuspended"; payload: { suspended: boolean; gen?: string } }
   | { action: "setTrusted"; payload: { trusted: boolean } };
 
 export const MAX_OUTBOX_ATTEMPTS = 20;
@@ -42,13 +42,13 @@ async function apply(env: Env, name: string, action: string, payload: Record<str
       return;
     case "goaway":
       await s.goaway(payload.reason as GoawayReason, {
-        gen: payload.gen as number | undefined,
+        gen: payload.gen as string | undefined,
         newName: payload.newName as string | undefined,
         message: payload.message as string | undefined,
       });
       return;
     case "setSuspended":
-      await s.setSuspended(Boolean(payload.suspended), payload.gen as number | undefined);
+      await s.setSuspended(Boolean(payload.suspended), payload.gen as string | undefined);
       return;
     case "setTrusted":
       await s.setTrusted(Boolean(payload.trusted));

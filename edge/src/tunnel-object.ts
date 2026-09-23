@@ -12,6 +12,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { edgePolicy, type EdgePolicy } from "./lib/config";
 import { writeConnectedMarker } from "./lib/connected-marker";
+import { nowSec } from "./lib/ids";
+import { connectAuthz } from "./lib/name-repo";
+import { errorResponse } from "./api/errors";
 import { META_CONNECT, META_CONTINENT, META_PROTO, META_REMOTE_IP, visitorToAgentHeaders } from "./lib/headers";
 import { apiError, statusPage } from "./pages/status-pages";
 import { Credit, ReceiveWindow } from "./protocol/flow";
@@ -47,7 +50,7 @@ export interface ConnectMeta {
   userId?: string;
   scope?: string;
   trusted?: boolean;
-  gen?: number;
+  gen?: string;
 }
 
 export interface AgentAttachment {
@@ -66,6 +69,8 @@ export interface AgentAttachment {
   sendCredit?: number;
   tokenId?: string;
   userId?: string;
+  /** Reservation incarnation this socket was admitted under. */
+  gen?: string;
 }
 
 export interface VisitorAttachment {
@@ -205,7 +210,11 @@ export class TunnelObject extends DurableObject<Env> {
   private name = "";
   private suspended = false;
   private trusted = false;
-  private gen: number | undefined;
+  private gen: string | undefined;
+  /** Bumped by every control RPC; a connect that awaited D1 across a bump retries (M1). */
+  private controlSeq = 0;
+  /** In-memory throttle for the hourly last_seen_at write (SQL also guards it). */
+  private lastSeenWriteAt = 0;
   private readonly conns = new Map<number, AgentConn>();
   /** Visitor WS messages waiting for agent credit, keyed "epoch:streamId". */
   private readonly wsBuffers = new Map<string, { msg: string | ArrayBuffer; size: number }[]>();
@@ -240,7 +249,7 @@ export class TunnelObject extends DurableObject<Env> {
       this.name = (s.get("name") as string | undefined) ?? "";
       this.suspended = (s.get("suspended") as boolean | undefined) ?? false;
       this.trusted = (s.get("trusted") as boolean | undefined) ?? false;
-      this.gen = s.get("gen") as number | undefined;
+      this.gen = s.get("gen") as string | undefined;
     });
     // Woken from hibernation: buffered visitor messages were lost with the old isolate (§5.3).
     for (const ws of ctx.getWebSockets("visitor")) {
@@ -253,11 +262,16 @@ export class TunnelObject extends DurableObject<Env> {
 
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (url.hostname === "connect.internal") return this.handleConnect(request);
+    if (url.hostname === "connect.internal") return this.connectAgent(request);
     return this.handleVisitor(request, url);
   }
 
-  private handleConnect(request: Request): Response {
+  /**
+   * Agent connect. D1 is re-read here (the Worker's check may be stale after a concurrent rename or
+   * delete); everything after that await runs synchronously, so concurrent connects are serialized
+   * by the replace rules.
+   */
+  private async connectAgent(request: Request): Promise<Response> {
     if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
       return apiError(400, "websocket_required", "connect requires a WebSocket upgrade");
     }
@@ -267,6 +281,35 @@ export class TunnelObject extends DurableObject<Env> {
     } catch {
       return apiError(400, "bad_meta", "missing connect meta");
     }
+    const seq = this.controlSeq;
+    const authz = await connectAuthz(this.env.DB, meta.name, meta.userId ?? "", nowSec());
+    if (!authz.ok) return errorResponse(authz.status, authz.code, authz.message, authz.extra);
+    // A goaway/suspend/revoke landed while D1 was read: the answer may predate it, so retry.
+    if (this.controlSeq !== seq) return errorResponse(503, "retry", "the tunnel changed state; retry", {}, { "retry-after": "1" });
+    if (authz.gen !== this.gen) this.adoptGen(authz.gen);
+    return this.acceptAgent(meta);
+  }
+
+  /**
+   * A new reservation incarnation (new owner, or re-created after release): reset name-scoped
+   * state. The epoch is kept so `c:<epoch>` tags never collide with live sockets.
+   */
+  private adoptGen(gen: string): void {
+    // Sockets admitted under the previous incarnation must not serve the new one.
+    for (const ws of this.ctx.getWebSockets("agent")) {
+      const att = ws.deserializeAttachment() as AgentAttachment | null;
+      if (att?.gen === gen) continue;
+      this.sendGoaway(ws, "deleted", { message: "this name changed hands" });
+      this.dropAgent(ws, 1000, "name changed");
+    }
+    this.gen = gen;
+    this.suspended = false;
+    this.trusted = false;
+    this.markerWritten = false;
+    void this.ctx.storage.put({ gen, suspended: false, trusted: false, marker: false });
+  }
+
+  private acceptAgent(meta: ConnectMeta): Response {
     if (this.suspended) return apiError(403, "suspended", "this tunnel is suspended; contact abuse@tuzy.dev");
 
     const now = Date.now();
@@ -309,6 +352,7 @@ export class TunnelObject extends DurableObject<Env> {
       draining: false,
       tokenId: meta.tokenId,
       userId: meta.userId,
+      gen: this.gen,
     };
     this.ctx.acceptWebSocket(server, ["agent", `c:${this.epoch}`]);
     server.serializeAttachment(att);
@@ -452,6 +496,18 @@ export class TunnelObject extends DurableObject<Env> {
       this.markerWritten = true;
       void this.ctx.storage.put("marker", true);
       this.ctx.waitUntil(writeConnectedMarker(this.env.NAMES_KV, att.name).catch(() => {}));
+    }
+    if (this.gen && Date.now() - this.lastSeenWriteAt >= 3_600_000) {
+      this.lastSeenWriteAt = Date.now();
+      const now = nowSec();
+      this.ctx.waitUntil(
+        this.env.DB.prepare(
+          "UPDATE reservations SET last_seen_at = ?1 WHERE name = ?2 AND gen = ?3 AND (last_seen_at IS NULL OR last_seen_at < ?4)",
+        )
+          .bind(now, att.name, this.gen, now - 3600)
+          .run()
+          .catch((e) => console.error("last_seen_at update failed", e)),
+      );
     }
   }
 
@@ -686,13 +742,14 @@ export class TunnelObject extends DurableObject<Env> {
 
   // ───────────────────────────── RPC control plane ─────────────────────────────
 
-  private genMatches(gen: number | undefined): boolean {
+  private genMatches(gen: string | undefined): boolean {
     return gen === undefined || this.gen === undefined || gen === this.gen;
   }
 
   /** Sends GOAWAY to every agent socket and closes them. No-op on a stale `gen`. */
-  async goaway(reason: GoawayReason, opts: { gen?: number; newName?: string; message?: string } = {}): Promise<boolean> {
+  async goaway(reason: GoawayReason, opts: { gen?: string; newName?: string; message?: string } = {}): Promise<boolean> {
     if (!this.genMatches(opts.gen)) return false;
+    this.controlSeq += 1;
     for (const ws of this.ctx.getWebSockets("agent")) {
       this.sendGoaway(ws, reason, { new_name: opts.newName, message: opts.message });
       this.dropAgent(ws, 1000, reason);
@@ -700,8 +757,9 @@ export class TunnelObject extends DurableObject<Env> {
     return true;
   }
 
-  async setSuspended(suspended: boolean, gen?: number): Promise<boolean> {
+  async setSuspended(suspended: boolean, gen?: string): Promise<boolean> {
     if (!this.genMatches(gen)) return false;
+    this.controlSeq += 1;
     this.suspended = suspended;
     await this.ctx.storage.put("suspended", suspended);
     if (suspended) await this.goaway("suspended", { message: "this tunnel was suspended; contact abuse@tuzy.dev" });
@@ -715,6 +773,7 @@ export class TunnelObject extends DurableObject<Env> {
 
   /** Closes live sessions authenticated with `tokenId` (logout / tokens rm). */
   async revokeToken(tokenId: string): Promise<number> {
+    this.controlSeq += 1;
     let n = 0;
     for (const ws of this.ctx.getWebSockets("agent")) {
       const att = ws.deserializeAttachment() as AgentAttachment | null;
@@ -728,6 +787,7 @@ export class TunnelObject extends DurableObject<Env> {
 
   /** Closes live sessions of a deleted account (only that user's sockets). */
   async revokeUser(userId: string): Promise<number> {
+    this.controlSeq += 1;
     let n = 0;
     for (const ws of this.ctx.getWebSockets("agent")) {
       const att = ws.deserializeAttachment() as AgentAttachment | null;

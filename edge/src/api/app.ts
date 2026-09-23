@@ -8,6 +8,7 @@ import type { AppEnv } from "./auth-middleware";
 import { handleConnect } from "./connect";
 import { errorResponse, toResponse } from "./errors";
 import { meRoutes } from "./me-routes";
+import { namesRoutes } from "./names-routes";
 import { tokenRoutes } from "./token-routes";
 
 export const apiApp = new Hono<AppEnv>();
@@ -19,6 +20,7 @@ apiApp.route("/api/v1/auth", authRoutes);
 apiApp.route("/api/v1/me", meRoutes);
 apiApp.route("/api/v1/tokens", tokenRoutes);
 apiApp.route("/api/v1/account", accountRoutes);
+apiApp.route("/api/v1/names", namesRoutes);
 apiApp.all("/api/*", () => errorResponse(404, "not_found", "unknown API endpoint"));
 apiApp.get("/", (c) => c.text("tuzy: expose localhost at a stable https://<name>.tuzy.dev URL\n"));
 apiApp.notFound(() => new Response("tuzy: not found\n", { status: 404 }));

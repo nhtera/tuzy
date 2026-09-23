@@ -180,7 +180,7 @@ func (c *Client) emit(e Event) {
 
 // Run connects and serves until ctx is cancelled (graceful DRAIN → nil) or a terminal error.
 func (c *Client) Run(ctx context.Context) error {
-	attempt := 0
+	attempt, renameHops := 0, 0
 	var delay time.Duration
 	for {
 		if delay > 0 {
@@ -196,6 +196,18 @@ func (c *Client) Run(ctx context.Context) error {
 		c.emit(Event{Kind: EventConnecting, Name: c.Name()})
 		sess, ready, err := c.connect(ctx)
 		if err != nil {
+			var moved *renamedError
+			if errors.As(err, &moved) {
+				// The name was renamed while we were offline: follow the hint like GOAWAY renamed,
+				// bounded so a hint cycle can't loop forever.
+				renameHops++
+				if renameHops > maxRenameHops {
+					return moved.exit
+				}
+				c.follow(moved.newName)
+				delay = 0
+				continue
+			}
 			var exit *ExitError
 			if errors.As(err, &exit) {
 				return exit
@@ -213,6 +225,7 @@ func (c *Client) Run(ctx context.Context) error {
 			continue
 		}
 
+		renameHops = 0
 		c.mu.Lock()
 		c.opts.Force = false // --force takes over once; reconnects must not evict a legitimate new holder
 		c.mu.Unlock()
@@ -230,11 +243,7 @@ func (c *Client) Run(ctx context.Context) error {
 				return exit
 			}
 			if g.Reason == protocol.ReasonRenamed && g.NewName != "" {
-				c.mu.Lock()
-				old := c.opts.Name
-				c.opts.Name = g.NewName
-				c.mu.Unlock()
-				c.emit(Event{Kind: EventRenamed, Name: g.NewName, OldName: old})
+				c.follow(g.NewName)
 				delay = 0
 				continue
 			}
@@ -247,6 +256,26 @@ func (c *Client) Run(ctx context.Context) error {
 		c.emit(Event{Kind: EventReconnecting, Name: c.Name(), Err: runErr, RetryIn: delay})
 	}
 }
+
+// maxRenameHops bounds how many 410 rename hints one connect attempt follows.
+const maxRenameHops = 3
+
+// follow switches to a new name (the old one was renamed) and reports it.
+func (c *Client) follow(newName string) {
+	c.mu.Lock()
+	old := c.opts.Name
+	c.opts.Name = newName
+	c.mu.Unlock()
+	c.emit(Event{Kind: EventRenamed, Name: newName, OldName: old})
+}
+
+// renamedError is a 410 carrying a rename hint; exit is returned once the hop budget is spent.
+type renamedError struct {
+	newName string
+	exit    *ExitError
+}
+
+func (e *renamedError) Error() string { return e.exit.Error() }
 
 // retryError is a transient connect failure (network, 429, 5xx).
 type retryError struct {
@@ -340,7 +369,10 @@ func (c *Client) statusError(resp *http.Response) error {
 		return exit("name is live on another device; rerun with --force")
 	case http.StatusGone:
 		if body.NewName != "" {
-			return exit(fmt.Sprintf("`%s` was renamed to `%s`", c.Name(), body.NewName))
+			return &renamedError{
+				newName: body.NewName,
+				exit:    &ExitError{Status: resp.StatusCode, Code: body.Code, Message: fmt.Sprintf("`%s` was renamed to `%s`", c.Name(), body.NewName)},
+			}
 		}
 		return exit(fmt.Sprintf("`%s` was removed", c.Name()))
 	case http.StatusTooManyRequests, http.StatusServiceUnavailable:

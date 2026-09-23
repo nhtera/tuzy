@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import { FrameType } from "../../src/protocol/frames";
 import { api, lastCode, login } from "./api-helpers";
+import type { TunnelObject } from "../../src/tunnel-object";
 import { FakeAgent } from "./fake-agent";
 
 let n = 0;
@@ -75,6 +76,8 @@ describe("token lifecycle", () => {
       ["/tokens", "GET"],
       ["/tokens/current", "DELETE"],
       ["/account/delete/start", "POST"],
+      ["/names", "POST"],
+      ["/names/anything", "DELETE"],
     ] as const) {
       const r = await api(path, { method, token: ci, body: method === "POST" ? { name: "x-y-z" } : undefined });
       expect(r.json?.error?.code, `${method} ${path}`).toBe("insufficient_scope");
@@ -149,15 +152,19 @@ describe("account deletion", () => {
   it("deleting an account only closes that account's sockets", async () => {
     const victim = await login(email());
     const attacker = await login(email());
-    const agent = await FakeAgent.connect("victim-live", { token: victim.token });
-    const { res } = await FakeAgent.open("victim-live", { token: attacker.token }); // 409: not recorded
-    expect(res.status).toBe(409);
+    const victimAgent = await FakeAgent.connect("victim-live", { token: victim.token });
+    const attackerAgent = await FakeAgent.connect("attacker-live", { token: attacker.token });
+    // The DO filter itself: revoking another user on the victim's DO is a no-op.
+    const stub = env.TUNNEL.get(env.TUNNEL.idFromName("victim-live")) as unknown as DurableObjectStub<TunnelObject>;
+    expect(await stub.revokeUser(attacker.userId)).toBe(0);
     const e = (await api("/me", { token: attacker.token })).json.user.email as string;
     const start = await api("/account/delete/start", { token: attacker.token, body: {} });
     expect((await api("/account/delete/confirm", { token: attacker.token, body: { login_id: start.json.login_id, code: lastCode(e) } })).status).toBe(200);
+    await attackerAgent.waitClosed(5000);
+    expect(attackerAgent.frames.some((f) => f.type === FrameType.GOAWAY)).toBe(true);
     await new Promise((r) => setTimeout(r, 300));
-    expect(agent.closed).toBeNull();
-    agent.close();
+    expect(victimAgent.closed).toBeNull();
+    victimAgent.close();
   });
 
   it("a login code cannot confirm a deletion", async () => {

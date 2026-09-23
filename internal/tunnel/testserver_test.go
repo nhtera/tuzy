@@ -23,13 +23,14 @@ type fakeEdge struct {
 	t   *testing.T
 	srv *httptest.Server
 
-	mu     sync.Mutex
-	status int    // when non-zero, connects are rejected with this status…
-	body   string // …and this JSON body
-	header http.Header
-	noPong bool
-	goaway *protocol.GoawayMsg // sent instead of READY
-	conns  chan *edgeConn
+	mu       sync.Mutex
+	status   int    // when non-zero, connects are rejected with this status…
+	body     string // …and this JSON body
+	header   http.Header
+	onlyName string // when set, only connects for this name are rejected
+	noPong   bool
+	goaway   *protocol.GoawayMsg // sent instead of READY
+	conns    chan *edgeConn
 }
 
 func newFakeEdge(t *testing.T) *fakeEdge {
@@ -57,6 +58,9 @@ func (e *fakeEdge) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	e.mu.Lock()
 	status, body, header, goaway, noPong := e.status, e.body, e.header, e.goaway, e.noPong
+	if e.onlyName != "" && r.URL.Query().Get("name") != e.onlyName {
+		status = 0
+	}
 	e.mu.Unlock()
 	if status != 0 {
 		for k, v := range header {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/nhtera/tuzy/internal/api"
 	"github.com/nhtera/tuzy/internal/config"
 	"github.com/nhtera/tuzy/internal/tunnel"
 	"github.com/nhtera/tuzy/internal/ui"
@@ -68,6 +69,13 @@ func newStartCmd() *cobra.Command {
 			}
 			if env.token, err = resolveToken(cmd, env); err != nil {
 				return err
+			}
+			// Pre-check every name once (owned / claim if free / refuse holds) before connecting.
+			resolver := nameResolver(cmd, api.New(env.server, env.token, userAgent()))
+			for _, s := range specs {
+				if _, err := resolver.Resolve(cmd.Context(), s.name); err != nil {
+					return fmt.Errorf("tunnels.%s: %w", s.name, err)
+				}
 			}
 			return runTunnels(cmd.Context(), env, specs, ui.New(cmd.OutOrStdout(), quiet, env.displayServer()))
 		},

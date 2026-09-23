@@ -10,6 +10,7 @@
 import { isValidTunnelLabel } from "../lib/host";
 import { META_CONNECT, stripEdgeInternal } from "../lib/headers";
 import { nowSec } from "../lib/ids";
+import { connectAuthz } from "../lib/name-repo";
 import type { ConnectMeta, TunnelObject } from "../tunnel-object";
 import { authenticate } from "./auth-middleware";
 import { ApiError, errorResponse } from "./errors";
@@ -51,6 +52,8 @@ export async function handleConnect(request: Request, env: Env, ctx: ExecutionCo
   if (!INSTANCE_RE.test(instanceId)) return errorResponse(400, "invalid_instance", "instance must be 16-64 chars of [A-Za-z0-9_-]");
   const rl = await env.RL_CONNECT.limit({ key: `${auth.userId}:${name}` });
   if (!rl.success) throw new ApiError(429, "rate_limited", "reconnecting too fast; slow down", {}, { "retry-after": "10" });
+  const authz = await connectAuthz(env.DB, name, auth.userId, nowSec());
+  if (!authz.ok) return errorResponse(authz.status, authz.code, authz.message, authz.extra);
 
   // Public URL mirrors how the apex was reached (https://shop.tuzy.dev, or http://shop.localhost:8787
   // in dev): normalized host (lowercase, no trailing dot), keeping a non-default port.
@@ -65,8 +68,8 @@ export async function handleConnect(request: Request, env: Env, ctx: ExecutionCo
     tokenId: auth.tokenId,
     scope: auth.scope,
     trusted: auth.trusted,
+    gen: authz.gen,
   };
-
 
   const headers = new Headers(request.headers);
   headers.delete("authorization");

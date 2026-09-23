@@ -28,7 +28,7 @@ func NewRootCmd() *cobra.Command {
 	root.PersistentFlags().String("server", "", "edge server URL (default https://tuzy.dev; env TUZY_SERVER)")
 	root.PersistentFlags().String("config", "", "user config file (default $UserConfigDir/tuzy/config.toml)")
 	_ = root.PersistentFlags().MarkHidden("server")
-	root.AddCommand(newVersionCmd(), newHTTPCmd(), newStartCmd(), newLoginCmd(), newLogoutCmd(), newWhoamiCmd(), newTokensCmd(), newAccountCmd())
+	root.AddCommand(newVersionCmd(), newHTTPCmd(), newStartCmd(), newLoginCmd(), newLogoutCmd(), newWhoamiCmd(), newTokensCmd(), newAccountCmd(), newNamesCmd())
 	return root
 }
 
