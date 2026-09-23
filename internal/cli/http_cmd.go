@@ -42,6 +42,9 @@ func newHTTPCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if env.token, err = resolveToken(cmd, env); err != nil {
+				return err
+			}
 			p := ui.New(cmd.OutOrStdout(), quiet, env.displayServer())
 			return runTunnels(cmd.Context(), env, []tunnelSpec{{name: name, target: target, hostHeader: hostHeader, force: force}}, p)
 		},

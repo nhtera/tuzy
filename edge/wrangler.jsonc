@@ -22,19 +22,33 @@
     "DEAD_SOCKET_SECONDS": "45",
     "CREDIT_TIMEOUT_SECONDS": "30",
     "LONG_STREAM_AFTER_SECONDS": "300",
-    "HELLO_TIMEOUT_SECONDS": "10"
+    "HELLO_TIMEOUT_SECONDS": "10",
+    // Email (README "GATE A"). DAILY_SEND_BUDGET stays under the account's 1,000/day quota.
+    "EMAIL_DRIVER": "cloudflare",
+    "EMAIL_FROM": "login@tuzy.dev",
+    "DAILY_SEND_BUDGET": "900"
   },
-  // Secrets (`wrangler secret put` / .dev.vars): DEV_TOKEN (phase 2 connect auth, removed in phase 4).
+  // Secrets (`wrangler secret put` / .dev.vars): ADMIN_EMAIL (alerts; a verified Email Routing destination).
   "durable_objects": {
     "bindings": [{ "name": "TUNNEL", "class_name": "TunnelObject" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TunnelObject"] }],
   "kv_namespaces": [{ "binding": "NAMES_KV", "id": "fac32e91bdca4a4e853805c7576ef64b" }],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "tuzy", "database_id": "afe4366c-30f5-41e6-a7c3-5c9c7f86ed06", "migrations_dir": "migrations" }
+  ],
+  // Burst shedding only (per location, eventually consistent); D1 caps are authoritative.
+  "ratelimits": [
+    { "name": "RL_OTP_IP", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_OTP_EMAIL", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
+    { "name": "RL_API", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
+    { "name": "RL_CONNECT", "namespace_id": "1004", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["login@tuzy.dev"] }],
+  "triggers": { "crons": ["*/5 * * * *"] },
   // Invocation logs off: one log per visitor request would exceed the 20M/mo included events at
   // launch scale and retain visitor URLs. console.* logs (errors, admin/audit events) stay on.
   "observability": { "enabled": true, "logs": { "invocation_logs": false } },
   "dev": { "port": 8787 }
-  // send_email binding: added in phase 4 (block recorded in README "GATE A").
-  // Binding ownership: phase 4 DB, RL_OTP_*, RL_API, RL_CONNECT, */5 outbox cron;
-  // phase 7 RL_TUNNEL, RL_ABUSE, daily cron, INTERSTITIAL_SECRET; phase 8 RL_DIAGNOSE.
+  // Binding ownership: phase 7 RL_TUNNEL, RL_ABUSE, daily cron, INTERSTITIAL_SECRET; phase 8 RL_DIAGNOSE.
 }

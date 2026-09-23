@@ -32,7 +32,5 @@ export function statusPage(page: StatusPage, detail?: string): Response {
   });
 }
 
-/** JSON error for API clients (the CLI). */
-export function apiError(status: number, error: string, message: string, extra?: Record<string, unknown>): Response {
-  return Response.json({ error, message, ...extra }, { status, headers: { "cache-control": "no-store" } });
-}
+/** JSON error for API clients (the CLI): `{error: {code, message, ...extra}}`. */
+export { errorResponse as apiError } from "../api/errors";

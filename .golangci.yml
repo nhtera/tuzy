@@ -5,6 +5,13 @@ linters:
     - misspell
     - gocritic
     - revive
+  settings:
+    errcheck:
+      # Printing to a command's output stream: nothing useful to do on failure.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
   exclusions:
     rules:
       # Test HTTP handlers write to httptest recorders; unchecked writes are noise there.

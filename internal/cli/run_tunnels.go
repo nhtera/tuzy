@@ -21,6 +21,9 @@ type tunnelSpec struct {
 // runTunnels runs every tunnel in one process until ctx is cancelled (graceful drain → nil) or one
 // of them fails terminally (all stop, that error is returned).
 func runTunnels(ctx context.Context, env *runtimeEnv, specs []tunnelSpec, p *ui.Printer) error {
+	if env.token == "" {
+		return errors.New("not logged in: run `tuzy login` (or set TUZY_TOKEN in CI)")
+	}
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	multi := len(specs) > 1

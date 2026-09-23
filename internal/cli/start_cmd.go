@@ -66,6 +66,9 @@ func newStartCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if env.token, err = resolveToken(cmd, env); err != nil {
+				return err
+			}
 			return runTunnels(cmd.Context(), env, specs, ui.New(cmd.OutOrStdout(), quiet, env.displayServer()))
 		},
 	}

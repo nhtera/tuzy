@@ -18,7 +18,9 @@ import {
   type Frame,
 } from "../../src/protocol/frames";
 
-export const TOKEN = "test-dev-token";
+import { TEST_TOKEN as TOKEN } from "../setup";
+
+export { TOKEN };
 export const BASE = "tuzy.dev";
 
 let instanceSeq = 0;
@@ -87,7 +89,7 @@ export class FakeAgent {
   }
 
   /** Opens and completes HELLO → READY. */
-  static async connect(name: string, opts: { instance?: string; force?: boolean } = {}): Promise<FakeAgent> {
+  static async connect(name: string, opts: { instance?: string; force?: boolean; token?: string } = {}): Promise<FakeAgent> {
     const { agent, res } = await FakeAgent.open(name, opts);
     if (!agent) throw new Error(`connect failed: ${res.status} ${await res.text()}`);
     await agent.hello();

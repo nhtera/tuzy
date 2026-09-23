@@ -35,7 +35,7 @@ describe("replace rules (PROTOCOL §3.2)", () => {
     const { agent, res } = await FakeAgent.open("busy1");
     expect(agent).toBeUndefined();
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: "name_in_use" });
+    expect(await res.json()).toMatchObject({ error: { code: "name_in_use" } });
     await roundTrip(a, "busy1"); // the holder is untouched
     a.close();
   });

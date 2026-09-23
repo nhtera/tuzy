@@ -9,6 +9,7 @@
 import { apiApp } from "./api/app";
 import { tunnelLabel } from "./lib/host";
 import { statusPage } from "./pages/status-pages";
+import { scheduled } from "./scheduled";
 import { proxyToTunnel } from "./tunnel-proxy";
 
 export { TunnelObject } from "./tunnel-object";
@@ -25,4 +26,5 @@ export default {
     }
     return proxyToTunnel(request, env, ctx, label);
   },
+  scheduled,
 } satisfies ExportedHandler<Env>;

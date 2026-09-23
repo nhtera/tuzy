@@ -46,6 +46,7 @@ export interface ConnectMeta {
   tokenId?: string;
   userId?: string;
   scope?: string;
+  trusted?: boolean;
   gen?: number;
 }
 
@@ -720,6 +721,19 @@ export class TunnelObject extends DurableObject<Env> {
       if (att?.tokenId !== tokenId) continue;
       this.sendGoaway(ws, "revoked", { message: "this session was logged out" });
       this.dropAgent(ws, 1000, "revoked");
+      n += 1;
+    }
+    return n;
+  }
+
+  /** Closes live sessions of a deleted account (only that user's sockets). */
+  async revokeUser(userId: string): Promise<number> {
+    let n = 0;
+    for (const ws of this.ctx.getWebSockets("agent")) {
+      const att = ws.deserializeAttachment() as AgentAttachment | null;
+      if (att?.userId !== userId) continue;
+      this.sendGoaway(ws, "deleted", { message: "this account was deleted" });
+      this.dropAgent(ws, 1000, "account deleted");
       n += 1;
     }
     return n;

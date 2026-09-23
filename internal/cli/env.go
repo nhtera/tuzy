@@ -18,6 +18,7 @@ type runtimeEnv struct {
 	server       *url.URL
 	serverSource string // "flag" | "env" | "config" | "default"
 	token        string
+	tokenRefused error // TUZY_TOKEN set but not allowed for this server (see resolveEnv)
 	user         config.User
 }
 
@@ -53,10 +54,12 @@ func resolveEnv(cmd *cobra.Command) (*runtimeEnv, error) {
 	// TUZY_TOKEN (typically a CI secret) only goes to the default server, a server named on the
 	// command line, or a loopback dev server — never to one picked up from TUZY_SERVER / user
 	// config, which directory env loaders (e.g. a cloned repo's .envrc) can set.
+	env := &runtimeEnv{server: server, serverSource: source, token: token, user: user}
 	if token != "" && source != "default" && source != "flag" && !isLocalHost(server.Hostname()) {
-		return nil, fmt.Errorf("refusing to send TUZY_TOKEN to %s (set via %s); pass --server explicitly to allow it", server, source)
+		env.token = ""
+		env.tokenRefused = fmt.Errorf("refusing to send TUZY_TOKEN to %s (set via %s); pass --server explicitly to allow it", server, source)
 	}
-	return &runtimeEnv{server: server, serverSource: source, token: token, user: user}, nil
+	return env, nil
 }
 
 func parseServer(raw string) (*url.URL, error) {

@@ -1,5 +1,6 @@
 import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
+import { TEST_TOKEN } from "../setup";
 
 const get = (url: string, host: string, init: RequestInit = {}) =>
   exports.default.fetch(url, { ...init, headers: { host, ...(init.headers as Record<string, string>) }, redirect: "manual" });
@@ -19,7 +20,7 @@ describe("worker routing", () => {
   it("returns JSON 404 for unknown API paths", async () => {
     const res = await get("https://tuzy.dev/api/v1/nope", "tuzy.dev");
     expect(res.status).toBe(404);
-    expect(await res.json()).toMatchObject({ error: "not_found" });
+    expect(await res.json()).toMatchObject({ error: { code: "not_found" } });
   });
 
   it("redirects www to the apex", async () => {
@@ -51,13 +52,13 @@ describe("worker routing", () => {
 describe("connect endpoint validation", () => {
   const connect = (qs: string, headers: Record<string, string> = {}) =>
     get(`https://tuzy.dev/api/v1/connect?${qs}`, "tuzy.dev", {
-      headers: { upgrade: "websocket", authorization: "Bearer test-dev-token", ...headers },
+      headers: { upgrade: "websocket", authorization: `Bearer ${TEST_TOKEN}`, ...headers },
     });
 
   it("requires a WebSocket upgrade", async () => {
     const res = await get("https://tuzy.dev/api/v1/connect?name=shop&instance=aaaaaaaaaaaaaaaa", "tuzy.dev");
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "websocket_required" });
+    expect(await res.json()).toMatchObject({ error: { code: "websocket_required" } });
   });
 
   it("rejects a missing or wrong token with 401", async () => {
@@ -66,8 +67,8 @@ describe("connect endpoint validation", () => {
   });
 
   it("rejects invalid names and instances with 400", async () => {
-    expect(await (await connect("name=a--b&instance=aaaaaaaaaaaaaaaa")).json()).toMatchObject({ error: "invalid_name" });
-    expect(await (await connect("name=shop&instance=short")).json()).toMatchObject({ error: "invalid_instance" });
-    expect(await (await connect(`name=shop&instance=${"a".repeat(65)}`)).json()).toMatchObject({ error: "invalid_instance" });
+    expect(await (await connect("name=a--b&instance=aaaaaaaaaaaaaaaa")).json()).toMatchObject({ error: { code: "invalid_name" } });
+    expect(await (await connect("name=shop&instance=short")).json()).toMatchObject({ error: { code: "invalid_instance" } });
+    expect(await (await connect(`name=shop&instance=${"a".repeat(65)}`)).json()).toMatchObject({ error: { code: "invalid_instance" } });
   });
 });
