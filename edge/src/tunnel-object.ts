@@ -13,7 +13,10 @@ import { DurableObject } from "cloudflare:workers";
 import { edgePolicy, type EdgePolicy } from "./lib/config";
 import { writeConnectedMarker } from "./lib/connected-marker";
 import { nowSec } from "./lib/ids";
+import { hasValidCookie, wantsInterstitial } from "./lib/interstitial";
 import { connectAuthz } from "./lib/name-repo";
+import { addUsage, longStreamBudget, monthKey, readUsage } from "./lib/usage";
+import { interstitialPage } from "./pages/interstitial-page";
 import { errorResponse } from "./api/errors";
 import { META_CONNECT, META_CONTINENT, META_PROTO, META_REMOTE_IP, visitorToAgentHeaders } from "./lib/headers";
 import { apiError, statusPage } from "./pages/status-pages";
@@ -71,6 +74,8 @@ export interface AgentAttachment {
   userId?: string;
   /** Reservation incarnation this socket was admitted under. */
   gen?: string;
+  /** Account long-stream usage (UTC month) as last known from D1; survives hibernation. */
+  usage?: { month: string; seconds: number; at?: number };
 }
 
 export interface VisitorAttachment {
@@ -135,8 +140,8 @@ function closeSocket(ws: WebSocket, code: number, reason: string): void {
 /** Callbacks an AgentConn needs from its TunnelObject (kept off the public RPC surface). */
 interface ConnHooks {
   acceptVisitorSocket(epoch: number, id: number, headers: Headers): Response;
-  admitLong(key: string): boolean;
-  releaseLong(key: string): void;
+  admitLong(epoch: number, id: number): true | "stream_timeout" | "long_stream_budget";
+  releaseLong(epoch: number, id: number): void;
   /** The connection became idle: persist state that must survive hibernation. */
   persistIdle(conn: AgentConn): void;
 }
@@ -186,8 +191,8 @@ class AgentConn implements StreamHost {
     }
   }
 
-  admitLong(id: number): boolean {
-    return this.hooks.admitLong(`${this.epoch}:${id}`);
+  admitLong(id: number): true | "stream_timeout" | "long_stream_budget" {
+    return this.hooks.admitLong(this.epoch, id);
   }
 
   acceptVisitorSocket(id: number, headers: Headers): Response {
@@ -196,13 +201,17 @@ class AgentConn implements StreamHost {
 
   onDone(id: number): void {
     this.streams.delete(id);
-    this.hooks.releaseLong(`${this.epoch}:${id}`);
+    this.hooks.releaseLong(this.epoch, id);
     if (this.streams.size === 0) {
       this.flushConn();
       this.hooks.persistIdle(this);
     }
   }
 }
+
+/** Long-stream usage: flush cadence while streams run, and max age of the account total at admit. */
+const USAGE_FLUSH_MS = 15 * 60_000;
+const USAGE_REFRESH_MS = 5 * 60_000;
 
 export class TunnelObject extends DurableObject<Env> {
   private readonly policy: EdgePolicy;
@@ -219,17 +228,18 @@ export class TunnelObject extends DurableObject<Env> {
   /** Visitor WS messages waiting for agent credit, keyed "epoch:streamId". */
   private readonly wsBuffers = new Map<string, { msg: string | ArrayBuffer; size: number }[]>();
   private wsBufferedBytes = 0;
-  /** Streams past LONG_STREAM_AFTER, per name (all epochs), keyed "epoch:id". */
-  private readonly longStreams = new Set<string>();
+  /**
+   * Streams past LONG_STREAM_AFTER, per name (all epochs), keyed "epoch:id". `since` is the start
+   * of the not-yet-flushed accrual window (ms) for the account budget.
+   */
+  private readonly longStreams = new Map<string, { userId: string | undefined; since: number }>();
+  /** Accrued long-stream ms per user, not yet written to D1. */
+  private readonly pendingUsage = new Map<string, number>();
   private markerWritten = false;
   private readonly hooks: ConnHooks = {
     acceptVisitorSocket: (epoch, id, headers) => this.acceptVisitorSocket(epoch, id, headers),
-    admitLong: (key) => {
-      if (this.longStreams.size >= this.policy.maxLongStreams) return false;
-      this.longStreams.add(key);
-      return true;
-    },
-    releaseLong: (key) => void this.longStreams.delete(key),
+    admitLong: (epoch, id) => this.admitLong(epoch, id),
+    releaseLong: (epoch, id) => this.releaseLong(epoch, id),
     persistIdle: (conn) => {
       const att = conn.ws.deserializeAttachment() as AgentAttachment | null;
       if (!att || conn.ws.readyState !== OPEN) return;
@@ -282,12 +292,21 @@ export class TunnelObject extends DurableObject<Env> {
       return apiError(400, "bad_meta", "missing connect meta");
     }
     const seq = this.controlSeq;
-    const authz = await connectAuthz(this.env.DB, meta.name, meta.userId ?? "", nowSec());
+    const month = monthKey();
+    const [authz, usedSeconds] = await Promise.all([
+      connectAuthz(this.env.DB, meta.name, meta.userId ?? "", nowSec()),
+      meta.userId ? readUsage(this.env.DB, meta.userId, month).catch(() => 0) : Promise.resolve(0),
+    ]);
     if (!authz.ok) return errorResponse(authz.status, authz.code, authz.message, authz.extra);
     // A goaway/suspend/revoke landed while D1 was read: the answer may predate it, so retry.
     if (this.controlSeq !== seq) return errorResponse(503, "retry", "the tunnel changed state; retry", {}, { "retry-after": "1" });
     if (authz.gen !== this.gen) this.adoptGen(authz.gen);
-    return this.acceptAgent(meta);
+    // Trust is the owning account's, from the same serialized D1 read; admin changes push it live.
+    if (authz.trusted !== this.trusted) {
+      this.trusted = authz.trusted;
+      void this.ctx.storage.put("trusted", this.trusted);
+    }
+    return this.acceptAgent(meta, { month, seconds: usedSeconds, at: Date.now() });
   }
 
   /**
@@ -309,7 +328,7 @@ export class TunnelObject extends DurableObject<Env> {
     void this.ctx.storage.put({ gen, suspended: false, trusted: false, marker: false });
   }
 
-  private acceptAgent(meta: ConnectMeta): Response {
+  private acceptAgent(meta: ConnectMeta, usage: { month: string; seconds: number; at: number }): Response {
     if (this.suspended) return apiError(403, "suspended", "this tunnel is suspended; contact abuse@tuzy.dev");
 
     const now = Date.now();
@@ -353,6 +372,7 @@ export class TunnelObject extends DurableObject<Env> {
       tokenId: meta.tokenId,
       userId: meta.userId,
       gen: this.gen,
+      usage,
     };
     this.ctx.acceptWebSocket(server, ["agent", `c:${this.epoch}`]);
     server.serializeAttachment(att);
@@ -364,7 +384,28 @@ export class TunnelObject extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  private handleVisitor(request: Request, url: URL): Response | Promise<Response> {
+  private async handleVisitor(request: Request, url: URL): Promise<Response> {
+    if (this.suspended) return statusPage("suspended");
+    const trusted = this.trusted;
+    if (!trusted && this.currentAgent()?.att.hello && wantsInterstitial(request.method, request.headers)) {
+      const host = url.hostname;
+      if (!(await hasValidCookie(this.env.INTERSTITIAL_SECRET, host, request.headers.get("cookie"), nowSec()))) {
+        return interstitialPage(this.name || host.split(".")[0]!, host, url.pathname + url.search, this.env.BASE_DOMAIN);
+      }
+    }
+    const res = await this.forwardVisitor(request, url);
+    if (!trusted && res.status !== 101) {
+      try {
+        res.headers.set("x-robots-tag", "noindex");
+      } catch {
+        // immutable headers (not expected for edge-built responses)
+      }
+    }
+    return res;
+  }
+
+  /** Synchronous up to stream-id allocation, so concurrent visitors never share an id. */
+  private forwardVisitor(request: Request, url: URL): Response | Promise<Response> {
     if (this.suspended) return statusPage("suspended");
     const current = this.currentAgent();
     if (!current || !current.att.hello) return statusPage("offline");
@@ -740,6 +781,86 @@ export class TunnelObject extends DurableObject<Env> {
     }
   }
 
+  // ───────────────────────────── long-stream budget ─────────────────────────────
+
+  private admitLong(epoch: number, id: number): true | "stream_timeout" | "long_stream_budget" {
+    if (this.longStreams.size >= this.policy.maxLongStreams) return "stream_timeout";
+    const att = this.agentSocket(epoch)?.deserializeAttachment() as AgentAttachment | null | undefined;
+    const month = monthKey();
+    const used = att?.usage && att.usage.month === month ? att.usage.seconds : 0;
+    const pending = att?.userId ? (this.pendingUsage.get(att.userId) ?? 0) / 1000 : 0;
+    if (att?.userId && used + pending >= longStreamBudget(this.env)) return "long_stream_budget";
+    this.longStreams.set(`${epoch}:${id}`, { userId: att?.userId, since: Date.now() });
+    void this.ensureUsageAlarm();
+    // Other names of the account also spend the budget: refresh a stale total (> 5 min old).
+    if (att?.userId && Date.now() - (att.usage?.at ?? 0) > USAGE_REFRESH_MS) this.ctx.waitUntil(this.refreshUsage(att.userId));
+    return true;
+  }
+
+  private releaseLong(epoch: number, id: number): void {
+    const key = `${epoch}:${id}`;
+    const s = this.longStreams.get(key);
+    if (!s) return;
+    this.longStreams.delete(key);
+    this.accrue(s, Date.now());
+    this.ctx.waitUntil(this.flushUsage());
+  }
+
+  private accrue(s: { userId: string | undefined; since: number }, now: number): void {
+    if (s.userId) this.pendingUsage.set(s.userId, (this.pendingUsage.get(s.userId) ?? 0) + Math.max(0, now - s.since));
+    s.since = now;
+  }
+
+  private async ensureUsageAlarm(): Promise<void> {
+    if ((await this.ctx.storage.getAlarm()) === null) await this.ctx.storage.setAlarm(Date.now() + USAGE_FLUSH_MS);
+  }
+
+  /** Flushes our share, then re-reads the account total (spent by all its names). */
+  private async refreshUsage(userId: string): Promise<void> {
+    await this.flushUsage();
+    try {
+      const month = monthKey();
+      this.setUsage(userId, { month, seconds: await readUsage(this.env.DB, userId, month), at: Date.now() });
+    } catch (e) {
+      console.error("usage refresh failed", e);
+    }
+  }
+
+  private setUsage(userId: string, usage: { month: string; seconds: number; at: number }): void {
+    for (const ws of this.ctx.getWebSockets("agent")) {
+      const att = ws.deserializeAttachment() as AgentAttachment | null;
+      if (att?.userId !== userId || ws.readyState !== OPEN) continue;
+      att.usage = usage;
+      ws.serializeAttachment(att);
+    }
+  }
+
+  /** Writes accrued seconds to D1 and refreshes each account total on its live agent sockets. */
+  private async flushUsage(): Promise<void> {
+    const month = monthKey();
+    for (const [userId, ms] of [...this.pendingUsage]) {
+      const seconds = Math.floor(ms / 1000);
+      if (seconds < 1) continue;
+      this.pendingUsage.set(userId, ms - seconds * 1000); // keep the sub-second remainder
+      try {
+        const total = await addUsage(this.env.DB, userId, seconds, month);
+        this.setUsage(userId, { month, seconds: total, at: Date.now() });
+      } catch (e) {
+        this.pendingUsage.set(userId, (this.pendingUsage.get(userId) ?? 0) + seconds * 1000);
+        console.error("usage flush failed", e);
+      }
+    }
+  }
+
+  /** Every 15 min while long streams exist: accrue their time so far and flush. */
+  override async alarm(): Promise<void> {
+    const now = Date.now();
+    for (const s of this.longStreams.values()) this.accrue(s, now);
+    await this.flushUsage();
+    const pendingSeconds = [...this.pendingUsage.values()].some((ms) => ms >= 1000);
+    if (this.longStreams.size > 0 || pendingSeconds) await this.ctx.storage.setAlarm(now + USAGE_FLUSH_MS);
+  }
+
   // ───────────────────────────── RPC control plane ─────────────────────────────
 
   private genMatches(gen: string | undefined): boolean {
@@ -767,13 +888,14 @@ export class TunnelObject extends DurableObject<Env> {
   }
 
   async setTrusted(trusted: boolean): Promise<void> {
+    this.controlSeq += 1; // a connect racing this push must re-read D1 (it would restore stale trust)
     this.trusted = trusted;
     await this.ctx.storage.put("trusted", trusted);
   }
 
   /** Closes live sessions authenticated with `tokenId` (logout / tokens rm). */
   async revokeToken(tokenId: string): Promise<number> {
-    this.controlSeq += 1;
+    // No controlSeq bump: connectAuthz doesn't read tokens (the Worker and recordSession do).
     let n = 0;
     for (const ws of this.ctx.getWebSockets("agent")) {
       const att = ws.deserializeAttachment() as AgentAttachment | null;

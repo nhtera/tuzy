@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { markerKey } from "../lib/connected-marker";
 import { nowSec } from "../lib/ids";
 import { NameRepoError, getReservation, listNames, remove, rename, reserve, setDefault, type Reservation } from "../lib/name-repo";
+import { ipPrefix } from "../lib/ip-prefix";
 import { autoName, checkName } from "../lib/names";
 import { pushOutbox } from "../lib/outbox";
 import type { TunnelObject } from "../tunnel-object";
@@ -23,6 +24,7 @@ export const namesRoutes = new Hono<AppEnv>();
 
 const REPO_ERRORS: Record<string, [number, string]> = {
   same_name: [400, "that's already its name"],
+  hold_quota: [403, "you have too many released names on hold (20); contact abuse@tuzy.dev"],
   name_taken: [409, "that name is taken"],
   name_on_hold: [409, "that name was recently released by another account and is on hold"],
   quota_exceeded: [403, "you've reached your name limit; remove one with `tuzy names rm`"],
@@ -37,6 +39,11 @@ function repoError(e: unknown): never {
   }
   throw e;
 }
+
+const actorOf = (c: { get(k: "auth"): { userId: string }; req: { header(n: string): string | undefined } }) => ({
+  userId: c.get("auth").userId,
+  ipPrefix: ipPrefix(c.req.header("cf-connecting-ip")),
+});
 
 function validated(name: unknown): string {
   const n = String(name ?? "").toLowerCase();
@@ -105,7 +112,7 @@ namesRoutes.post("/", requireAuth(), async (c) => {
   if (body.auto === true) {
     for (let i = 0; i < 5; i++) {
       try {
-        const r = await reserve(c.env.DB, auth.userId, autoName(), now);
+        const r = await reserve(c.env.DB, auth.userId, autoName(), now, actorOf(c));
         return c.json(publicName(c, c.env, r), 201);
       } catch (e) {
         if (e instanceof NameRepoError && (e.code === "name_taken" || e.code === "name_on_hold")) continue;
@@ -115,7 +122,7 @@ namesRoutes.post("/", requireAuth(), async (c) => {
     throw new ApiError(503, "no_suggestion", "couldn't find a free name; pick one yourself");
   }
   try {
-    const r = await reserve(c.env.DB, auth.userId, validated(body.name), now);
+    const r = await reserve(c.env.DB, auth.userId, validated(body.name), now, actorOf(c));
     return c.json(publicName(c, c.env, r), 201);
   } catch (e) {
     repoError(e);
@@ -128,7 +135,7 @@ namesRoutes.patch("/:name", requireAuth(), async (c) => {
   const body = await jsonBody(c.req.raw);
   try {
     if (typeof body.rename === "string") {
-      const { reservation, outboxIds } = await rename(c.env.DB, auth.userId, name, validated(body.rename), nowSec());
+      const { reservation, outboxIds } = await rename(c.env.DB, auth.userId, name, validated(body.rename), nowSec(), actorOf(c));
       c.executionCtx.waitUntil(
         Promise.all([
           outboxIds.length ? pushOutbox(c.env, outboxIds).catch((e) => console.error("outbox push failed", e)) : null,
@@ -138,7 +145,7 @@ namesRoutes.patch("/:name", requireAuth(), async (c) => {
       return c.json(publicName(c, c.env, reservation));
     }
     if (body.default === true) {
-      await setDefault(c.env.DB, auth.userId, name);
+      await setDefault(c.env.DB, auth.userId, name, actorOf(c));
       return c.json(publicName(c, c.env, (await getReservation(c.env.DB, name))!));
     }
   } catch (e) {
@@ -152,7 +159,7 @@ namesRoutes.delete("/:name", requireAuth(), async (c) => {
   const name = c.req.param("name").toLowerCase();
   let outboxIds: string[] = [];
   try {
-    outboxIds = await remove(c.env.DB, auth.userId, name, nowSec());
+    outboxIds = await remove(c.env.DB, auth.userId, name, nowSec(), actorOf(c));
   } catch (e) {
     repoError(e);
   }

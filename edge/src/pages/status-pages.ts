@@ -3,7 +3,7 @@
  * Every page is marked `x-tuzy-edge: 1` so users and the CLI can tell edge errors from app errors.
  */
 
-export type StatusPage = "not_found" | "offline" | "draining" | "timeout" | "busy" | "bad_gateway" | "suspended" | "header_too_large";
+export type StatusPage = "not_found" | "offline" | "draining" | "timeout" | "busy" | "bad_gateway" | "suspended" | "header_too_large" | "rate_limited";
 
 const PAGES: Record<StatusPage, { status: number; title: string; body: string }> = {
   not_found: { status: 404, title: "Tunnel not found", body: "There is no tunnel at this address." },
@@ -12,7 +12,8 @@ const PAGES: Record<StatusPage, { status: number; title: string; body: string }>
   timeout: { status: 504, title: "Gateway timeout", body: "The local app did not respond in time." },
   busy: { status: 503, title: "Tunnel busy", body: "This tunnel has too many requests in flight. Try again shortly." },
   bad_gateway: { status: 502, title: "Bad gateway", body: "The tunnel agent could not complete this request." },
-  suspended: { status: 403, title: "Tunnel suspended", body: "This tunnel has been suspended." },
+  suspended: { status: 451, title: "Tunnel suspended", body: "This tunnel has been suspended for violating the tuzy acceptable use policy." },
+  rate_limited: { status: 429, title: "Too many requests", body: "This tunnel is receiving too many requests. Try again in a few seconds." },
   header_too_large: { status: 431, title: "Request headers too large", body: "The request headers are too large to relay." },
 };
 

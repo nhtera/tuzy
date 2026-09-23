@@ -102,6 +102,9 @@ func (p *Printer) Access(name string, a tunnel.AccessEntry) {
 	p.line("%s%s %-6s %s %s %s%s", prefix, time.Now().Format("15:04:05"), sanitize(a.Method), sanitize(a.Path), status, a.Duration.Round(time.Millisecond), extra)
 }
 
+// Sanitize neutralizes control characters (terminal escape injection via untrusted text).
+func Sanitize(s string) string { return sanitize(s) }
+
 // sanitize neutralizes control characters (terminal escape injection via visitor paths).
 func sanitize(s string) string {
 	return strings.Map(func(r rune) rune {

@@ -9,6 +9,7 @@ import { Hono } from "hono";
 import { isDisposable, isValidEmail, normalizeEmail } from "../lib/email-validation";
 import { newId, nowSec } from "../lib/ids";
 import { ipPrefix } from "../lib/ip-prefix";
+import { newAccountMaxNames } from "../lib/moderation";
 import { CODE_TTL_SECONDS, normalizeCode } from "../lib/otp";
 import { generateToken, hashToken } from "../lib/tokens";
 import type { AppEnv } from "./auth-middleware";
@@ -48,21 +49,27 @@ authRoutes.post("/email/verify", async (c) => {
     consumeMatched(db, codeId),
     db
       .prepare(
-        `INSERT INTO users (id, email, created_at, last_login_at) SELECT ?1, ?2, ?3, ?3 WHERE changes() = 1
+        `INSERT INTO users (id, email, created_at, last_login_at, max_names) SELECT ?1, ?2, ?3, ?3, ?4 WHERE changes() = 1
          ON CONFLICT(email) DO UPDATE SET last_login_at = excluded.last_login_at WHERE users.status = 'active'`,
       )
-      .bind(newId("usr"), email, now),
+      .bind(newId("usr"), email, now, await newAccountMaxNames(c.env)),
     db
       .prepare(
         `INSERT INTO tokens (id, user_id, token_hash, scope, label, created_at)
          SELECT ?1, id, ?2, 'full', ?3, ?4 FROM users WHERE email = ?5 AND status = 'active' AND changes() = 1`,
       )
       .bind(tokenId, await hashToken(token), tokenLabel(body.label, "cli"), now, email),
+    db
+      .prepare(
+        `INSERT INTO audit_log (id, actor_user_id, action, target, meta, ip_prefix, created_at)
+         SELECT 'aud_' || lower(hex(randomblob(8))), id, 'auth.login', ?1, NULL, ?2, ?3 FROM users WHERE email = ?4 AND changes() = 1`,
+      )
+      .bind(tokenId, ipPrefix(c.req.header("cf-connecting-ip")), now, email),
     consumeCodes(db, email, "login"),
     db.prepare("SELECT id, status FROM users WHERE email = ?1").bind(email),
   ]);
   if (results[0]?.meta.changes !== 1) throw new ApiError(400, "invalid_code", "that code was already used; request a new one");
-  const user = results[4]?.results[0] as { id: string; status: string } | undefined;
+  const user = results[5]?.results[0] as { id: string; status: string } | undefined;
   if (!user || results[2]?.meta.changes !== 1) {
     if (user?.status === "suspended") throw new ApiError(403, "account_suspended", "this account is suspended; contact abuse@tuzy.dev");
     throw new ApiError(403, "account_deleted", "this account was deleted");

@@ -7,7 +7,9 @@
  * Object the token was connected to via RPC `revokeToken` → GOAWAY revoked.
  */
 import { Hono } from "hono";
+import { audit, auditIfChanged } from "../lib/audit";
 import { newId, nowSec } from "../lib/ids";
+import { ipPrefix } from "../lib/ip-prefix";
 import { pushOutbox, returnedIds } from "../lib/outbox";
 import { generateToken, hashToken, TOKEN_IDLE_SECONDS, type TokenScope } from "../lib/tokens";
 import { tokenLabel } from "./auth-routes";
@@ -63,11 +65,13 @@ tokenRoutes.post("/", async (c) => {
   const token = generateToken();
   const id = newId("tok");
   const label = tokenLabel(body.label, scope === "connect" ? "ci" : "cli");
-  await c.env.DB.prepare(
-    "INSERT INTO tokens (id, user_id, token_hash, scope, label, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-  )
-    .bind(id, userId, await hashToken(token), scope, label, nowSec(), expiresAt)
-    .run();
+  const db = c.env.DB;
+  await db.batch([
+    db
+      .prepare("INSERT INTO tokens (id, user_id, token_hash, scope, label, created_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+      .bind(id, userId, await hashToken(token), scope, label, nowSec(), expiresAt),
+    audit(db, { actor: userId, action: "token.create", target: id, meta: { scope }, ipPrefix: ipPrefix(c.req.header("cf-connecting-ip")) }),
+  ]);
   return c.json({ token, id, scope, label, expires_at: expiresAt }, 201);
 });
 
@@ -76,8 +80,9 @@ tokenRoutes.delete("/:id", async (c) => {
   const id = c.req.param("id") === "current" ? auth.tokenId : c.req.param("id");
   const now = nowSec();
   const db = c.env.DB;
-  const [upd, obx] = await db.batch([
+  const [upd, , obx] = await db.batch([
     db.prepare("UPDATE tokens SET revoked_at = ?1 WHERE id = ?2 AND user_id = ?3 AND revoked_at IS NULL").bind(now, id, auth.userId),
+    auditIfChanged(db, { actor: auth.userId, action: "token.revoke", target: id, ipPrefix: ipPrefix(c.req.header("cf-connecting-ip")) }),
     // Only if the revoke above happened (ownership predicate), notify every DO this token used.
     db
       .prepare(

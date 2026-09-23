@@ -333,7 +333,8 @@ agent                          edge runtime (auto-response)
 | `flow_control` | both | Data beyond granted credit |
 | `credit_timeout` | both | Waited > 30 s for credit |
 | `head_timeout` | edge | No RES_HEAD within `HEAD_TIMEOUT` (policy, default 300 s) |
-| `stream_timeout` | edge | Stream exceeded `MAX_STREAM_SECONDS` or the long-stream budget |
+| `stream_timeout` | edge | Stream exceeded `MAX_STREAM_SECONDS`, or the per-name long-stream cap was full at `LONG_STREAM_AFTER` |
+| `long_stream_budget` | edge | The account's monthly long-stream budget is used up; streams are cut at `LONG_STREAM_AFTER` |
 | `cancelled` | both | Visitor or local peer went away |
 | `local_error` | agent | Local target failed mid-response |
 

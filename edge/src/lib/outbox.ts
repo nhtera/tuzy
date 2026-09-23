@@ -74,6 +74,17 @@ export function returnedIds(result: D1Result | undefined): string[] {
 /** Pushes pending rows (all due rows, or only `ids`). Failures back off exponentially. */
 export async function pushOutbox(env: Env, ids?: string[]): Promise<{ done: number; failed: number }> {
   const now = nowSec();
+  if (ids && ids.length > 100) {
+    // D1 allows 100 bound parameters per statement: push in chunks.
+    let done = 0;
+    let failed = 0;
+    for (let i = 0; i < ids.length; i += 100) {
+      const r = await pushOutbox(env, ids.slice(i, i + 100));
+      done += r.done;
+      failed += r.failed;
+    }
+    return { done, failed };
+  }
   const rows = ids?.length
     ? (
         await env.DB.prepare(

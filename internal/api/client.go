@@ -178,6 +178,14 @@ func (c *Client) VerifyLogin(ctx context.Context, loginID, code, label string) (
 type Me struct {
 	User  User      `json:"user"`
 	Token TokenInfo `json:"token"`
+	Usage *Usage    `json:"usage,omitempty"`
+}
+
+// Usage is the account's long-stream allowance for the current UTC month.
+type Usage struct {
+	Month                   string `json:"month"`
+	LongStreamSeconds       int64  `json:"long_stream_seconds"`
+	LongStreamBudgetSeconds int64  `json:"long_stream_budget_seconds"`
 }
 
 // Me returns the current user and token.

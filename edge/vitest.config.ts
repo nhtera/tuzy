@@ -14,6 +14,8 @@ const testBindings = {
   LONG_STREAM_AFTER_SECONDS: "1",
   MAX_STREAM_SECONDS: "3600",
   HELLO_TIMEOUT_SECONDS: "1",
+  INTERSTITIAL_SECRET: "test-interstitial-secret",
+  QUARANTINE_THRESHOLD: "3",
 };
 
 const worker = cloudflareTest(async () => ({

@@ -7,6 +7,7 @@
  * after 30 days (hash kept for abuse linkage).
  */
 import { Hono } from "hono";
+import { auditWhen } from "../lib/audit";
 import { nowSec } from "../lib/ids";
 import { ipPrefix } from "../lib/ip-prefix";
 import { CODE_TTL_SECONDS, normalizeCode } from "../lib/otp";
@@ -62,6 +63,13 @@ accountRoutes.post("/delete/confirm", async (c) => {
       )
       .bind(now, auth.userId, HOLD_SECONDS),
     db.prepare(`DELETE FROM reservations WHERE user_id = ?2 AND ${deletedNow}`).bind(now, auth.userId),
+    auditWhen(
+      db,
+      { actor: auth.userId, action: "account.delete", target: auth.userId, meta: { names: reserved.map((r) => r.name) }, ipPrefix: ipPrefix(c.req.header("cf-connecting-ip")) },
+      "EXISTS (SELECT 1 FROM users WHERE id = ?7 AND status = 'deleted' AND deleted_at = ?8)",
+      auth.userId,
+      now,
+    ),
   ]);
   if (!upd || upd.meta.changes !== 1) throw new ApiError(409, "not_active", "this account is not active");
   const ids = returnedIds(obx);

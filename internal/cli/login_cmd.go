@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -145,7 +146,16 @@ func newWhoamiCmd() *cobra.Command {
 			fmt.Fprintf(out, "%s (%s)\n", me.User.Email, me.User.ID)
 			fmt.Fprintf(out, "token:  %s · scope %s\n", me.Token.Label, me.Token.Scope)
 			fmt.Fprintf(out, "server: %s\n", env.server)
+			if u := me.Usage; u != nil && u.LongStreamBudgetSeconds > 0 {
+				fmt.Fprintf(out, "long streams: %s of %s this month (%s)\n",
+					hours(u.LongStreamSeconds), hours(u.LongStreamBudgetSeconds), u.Month)
+			}
 			return nil
 		},
 	}
+}
+
+// hours renders seconds as "12.5 h" (long-stream usage).
+func hours(sec int64) string {
+	return strconv.FormatFloat(float64(sec)/3600, 'f', 1, 64) + " h"
 }

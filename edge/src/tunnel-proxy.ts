@@ -7,6 +7,8 @@
  * (URL host = the tunnel host) can never have.
  */
 import { hasConnectedMarker } from "./lib/connected-marker";
+import { nowSec } from "./lib/ids";
+import { CONTINUE_PATH, isContinueFromInterstitial, sanitizeTo, setCookieHeader, signCookie } from "./lib/interstitial";
 import { META_CONTINENT, META_PROTO, META_REMOTE_IP, stripEdgeInternal } from "./lib/headers";
 import { statusPage } from "./pages/status-pages";
 
@@ -14,7 +16,14 @@ export const RESERVED_PREFIX = "/__tuzy/";
 
 export async function proxyToTunnel(request: Request, env: Env, ctx: ExecutionContext, name: string): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname.startsWith(RESERVED_PREFIX)) return statusPage("not_found"); // phase 7 edge pages
+  if (url.pathname.startsWith(RESERVED_PREFIX)) return reservedPath(request, env, name, url);
+
+  const rl = await env.RL_TUNNEL.limit({ key: name });
+  if (!rl.success) {
+    const res = statusPage("rate_limited");
+    res.headers.set("retry-after", "10");
+    return res;
+  }
 
   // Meta is read BEFORE stripping, then re-set under edge-owned names.
   const remoteIp = request.headers.get("cf-connecting-ip") ?? "";
@@ -31,4 +40,26 @@ export async function proxyToTunnel(request: Request, env: Env, ctx: ExecutionCo
   const target = `${url.protocol}//${name}.${env.BASE_DOMAIN}${url.pathname}${url.search}`;
   const stub = env.TUNNEL.get(env.TUNNEL.idFromName(name));
   return stub.fetch(new Request(target, { method: request.method, headers, body: request.body, redirect: "manual" }));
+}
+
+/** `/__tuzy/` is the only path on tunnel hosts the user's app can't serve. */
+async function reservedPath(request: Request, env: Env, name: string, url: URL): Promise<Response> {
+  if (url.pathname !== CONTINUE_PATH || request.method !== "GET") return statusPage("not_found");
+  // Host-bound cookie: signed for exactly this tunnel host, never Domain=.
+  const host = `${name}.${env.BASE_DOMAIN}`;
+  const to = sanitizeTo(url.searchParams.get("to"));
+  if (!env.INTERSTITIAL_SECRET || !isContinueFromInterstitial(request.headers, url.origin)) {
+    // Not a click on our page: send the browser to the target, which shows the interstitial.
+    return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store", "x-tuzy-edge": "1" } });
+  }
+  return new Response(null, {
+    status: 302,
+    headers: {
+      location: to,
+      "set-cookie": setCookieHeader(await signCookie(env.INTERSTITIAL_SECRET, host, nowSec())),
+      "cache-control": "no-store",
+      "referrer-policy": "no-referrer",
+      "x-tuzy-edge": "1",
+    },
+  });
 }

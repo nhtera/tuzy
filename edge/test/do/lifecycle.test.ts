@@ -187,7 +187,7 @@ describe("RPC control plane", () => {
     const a = await FakeAgent.connect("susp1");
     await stub("susp1").setSuspended(true);
     expect((await a.next((f) => f.type === FrameType.GOAWAY)).json).toMatchObject({ reason: "suspended" });
-    expect((await visit("susp1", "/")).status).toBe(403);
+    expect((await visit("susp1", "/")).status).toBe(451);
     const { res } = await FakeAgent.open("susp1");
     expect(res.status).toBe(403);
     await stub("susp1").setSuspended(false);

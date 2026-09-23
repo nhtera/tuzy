@@ -7,8 +7,8 @@ import { nowSec } from "../lib/ids";
 import { hashToken, LAST_USED_RESOLUTION_SECONDS, looksLikeToken, TOKEN_IDLE_SECONDS, type TokenScope } from "../lib/tokens";
 import { ApiError } from "./errors";
 
-/** Account age after which clean accounts skip the interstitial (validation session 1). */
-export const AUTO_TRUST_SECONDS = 30 * 24 * 3600;
+import { AUTO_TRUST_SECONDS } from "../lib/trust";
+export { AUTO_TRUST_SECONDS };
 
 export interface AuthContext {
   userId: string;

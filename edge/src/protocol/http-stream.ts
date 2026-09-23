@@ -31,7 +31,8 @@ export type ResetCode =
   | "head_timeout"
   | "stream_timeout"
   | "cancelled"
-  | "local_error";
+  | "local_error"
+  | "long_stream_budget";
 
 /** What an HttpStream needs from its agent connection. */
 export interface StreamHost {
@@ -49,8 +50,8 @@ export interface StreamHost {
   grantConn(n: number): void;
   /** Flushes any coalesced connection credit now. */
   flushConn(): void;
-  /** Long-stream cap: true when this stream may continue past `longStreamMs`. */
-  admitLong(id: number): boolean;
+  /** Long-stream gate at `longStreamMs`: true to continue, else the RESET code to cut it with. */
+  admitLong(id: number): true | "stream_timeout" | "long_stream_budget";
   /** Turns an accepted ws stream (RES_HEAD 101) into a visitor WebSocket response. */
   acceptVisitorSocket(id: number, headers: Headers): Response;
   /** Called exactly once when the stream is finished or reset. */
@@ -104,7 +105,8 @@ export class HttpStream {
     this.timers.push(
       setTimeout(() => {
         if (this.done) return;
-        if (!this.host.admitLong(this.id)) this.reset("stream_timeout");
+        const admitted = this.host.admitLong(this.id);
+        if (admitted !== true) this.reset(admitted);
       }, p.longStreamMs),
     );
     if (signal?.aborted) {
@@ -294,7 +296,7 @@ export class HttpStream {
     if (!this.headDone) {
       this.headDone = true;
       const fallback: StatusPage =
-        code === "head_timeout" || code === "credit_timeout" || code === "stream_timeout" ? "timeout" : "bad_gateway";
+        code === "head_timeout" || code === "credit_timeout" || code === "stream_timeout" || code === "long_stream_budget" ? "timeout" : "bad_gateway";
       this.resolveHead(statusPage(page ?? fallback));
     } else {
       void this.writer?.abort(code).catch(() => {});
