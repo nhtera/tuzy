@@ -1,19 +1,28 @@
 /**
- * Tuzy edge Worker (phase 1 skeleton).
+ * Tuzy edge Worker: routes by the `Host` header (never request.url, see README "GATE B").
  *
- * Plain-text host check used to prove GATE B (Host-based routing under `wrangler dev`) and the
- * production wildcard route. Phase 2 replaces this with the tunnel/API dispatch.
+ *   BASE_DOMAIN            → apex app (CLI API, site)
+ *   www.BASE_DOMAIN        → 301 to the apex
+ *   <name>.BASE_DOMAIN     → tunnel proxy → TunnelObject DO
+ *   anything else          → 404 page
  */
-import { Hono } from "hono";
+import { apiApp } from "./api/app";
 import { tunnelLabel } from "./lib/host";
+import { statusPage } from "./pages/status-pages";
+import { proxyToTunnel } from "./tunnel-proxy";
 
-const app = new Hono<{ Bindings: Env }>();
+export { TunnelObject } from "./tunnel-object";
 
-app.all("*", (c) => {
-  const label = tunnelLabel(c.req.header("host"), c.env.BASE_DOMAIN);
-  if (label === null) return c.text("tuzy: unknown host\n", 404);
-  if (label === "") return c.text("tuzy: apex\n");
-  return c.text(`tuzy: tunnel ${label}\n`);
-});
-
-export default app;
+export default {
+  async fetch(request, env, ctx): Promise<Response> {
+    const label = tunnelLabel(request.headers.get("host"), env.BASE_DOMAIN);
+    if (label === null) return statusPage("not_found");
+    if (label === "") return apiApp.fetch(request, env, ctx);
+    if (label === "www") {
+      const url = new URL(request.url);
+      const host = (request.headers.get("host") ?? env.BASE_DOMAIN).replace(/^www\./i, "");
+      return Response.redirect(`${url.protocol}//${host}${url.pathname}${url.search}`, 301);
+    }
+    return proxyToTunnel(request, env, ctx, label);
+  },
+} satisfies ExportedHandler<Env>;
