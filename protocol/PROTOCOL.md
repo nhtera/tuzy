@@ -13,7 +13,9 @@ The key words MUST, MUST NOT, SHOULD and MAY are used as in RFC 2119.
   `Authorization: Bearer <token>`. `instance` lets the edge apply the replace rules (§3.2) before
   the upgrade, so a 409 is a plain HTTP response. `instance` MUST be 16–64 characters of
   `[A-Za-z0-9_-]` (the agent uses 128 random bits, base64url), else HTTP 400.
-  The edge terminates it in the tunnel's Durable Object (`TunnelObject`, one per name).
+  The edge terminates it in the tunnel's Durable Object (`TunnelObject`, one per name) through an
+  internal `fetch` to `https://connect.internal/` that carries the original upgrade headers.
+  (Workers RPC cannot return a 101/WebSocket response: workerd issue #2319.)
 - HTTP-level connect rejections (400/401/403/404/409/410/429/5xx) happen **before** the upgrade and
   are defined by the API (phases 2, 4, 5). There is no HTTP 426 path; version mismatch is signalled
   in-band (GOAWAY `upgrade_required`, §6).
@@ -69,8 +71,16 @@ frame := type:u8 | stream_id:u32 (big-endian) | payload:bytes
 | `WS_MSG_TOLERANCE` (agent-side outstanding limit, §5.3) | 16 |
 | `MAX_STREAMS` (concurrent per connection) | 128 |
 | `CREDIT_TIMEOUT` | 30 s |
-| `HEAD_TIMEOUT` (REQ_HEAD → RES_HEAD) | 60 s |
-| `MAX_STREAM_SECONDS` (HTTP stream lifetime) | 3 600 s (1 h) |
+
+**Edge policy defaults (informative).** These are edge-side policy, not wire format. They are
+configured as Worker `vars` and may change without a protocol bump. The agent MUST NOT depend on
+their exact values; it only reacts to the resulting RESET codes, 504s and GOAWAYs.
+
+| Policy | Default | Var |
+|---|---|---|
+| `HEAD_TIMEOUT` (REQ_HEAD → RES_HEAD) | 300 s (survives breakpoint debugging) | `HEAD_TIMEOUT_SECONDS` |
+| `MAX_STREAM_SECONDS` (HTTP stream lifetime) | 3 600 s (1 h) | `MAX_STREAM_SECONDS` |
+| `DEAD_SOCKET_AFTER` (§3.2 rule 2, §7) | 45 s | `DEAD_SOCKET_SECONDS` |
 
 A frame is **malformed** when any of these hold. On a malformed frame the receiver closes the
 agent socket with code **1002** (protocol error):
@@ -144,8 +154,9 @@ local target and answers:
 When a name already has a current agent socket, the edge decides using the `instance` query
 parameter:
 1. same `instance_id` as the current socket → replace it silently (same process reconnecting);
-2. current socket dead: its auto-response (pong) timestamp is older than **45 s**, or there is no
-   timestamp yet and the socket connected more than 45 s ago → replace;
+2. current socket dead: its auto-response (pong) timestamp is older than `DEAD_SOCKET_AFTER`
+   (policy, default **45 s**), or there is no timestamp yet and the socket connected more than
+   that long ago → replace;
 3. current socket has sent DRAIN → replace;
 4. `force=1` → send GOAWAY `replaced` to the current socket, then replace;
 5. otherwise → HTTP **409**.
@@ -178,6 +189,9 @@ Other device (instance J) while I is alive and pinging:
 - WINDOW increments are additive. A window that would exceed `MAX_WINDOW` → close 1002.
 - The receiver sends WINDOW (stream id and stream 0) **as its consumer reads the data** (the local
   app for the agent, the visitor for the edge), never merely on arrival.
+- Receivers MAY coalesce credit. They SHOULD send WINDOW once at least ¼ of the window has been
+  consumed since the last grant, or at stream end, rather than per chunk. Credits are additive,
+  so any coalescing policy interoperates.
 
 ### 4.2 Receiver never blocks
 - Inbound data goes into a per-stream queue bounded by the stream window. The socket reader never
@@ -194,7 +208,7 @@ Other device (instance J) while I is alive and pinging:
 
 ### 4.4 Credit timeout
 A sender waiting more than `CREDIT_TIMEOUT` (30 s) for credit sends RESET `credit_timeout`. The
-edge answers the visitor 504 if no RES_HEAD was sent yet. No RES_HEAD within `HEAD_TIMEOUT` (60 s)
+edge answers the visitor 504 if no RES_HEAD was sent yet. No RES_HEAD within `HEAD_TIMEOUT` (policy, default 300 s)
 → the edge sends RESET `head_timeout` and answers 504. A stream older than `MAX_STREAM_SECONDS`
 → RESET `stream_timeout`.
 
@@ -230,11 +244,12 @@ edge                                     agent / local app
 - The agent tolerates up to `WS_MSG_TOLERANCE` (16) outstanding edge→agent messages per stream as
   a safety margin before closing that visitor WS with **1008**.
 
-### 5.4 Agent → visitor backpressure (known limitation)
+### 5.4 Agent → visitor backpressure (known v1 limitation)
 The edge ACKs an agent→visitor message once it has called `send()` on the visitor socket. The
-Workers WebSocket API exposes no send-buffer size, so a slow visitor can accumulate up to the
-runtime's buffer in DO memory. Phase 2 spikes whether `bufferedAmount` (or an equivalent) is
-available; if it is, the edge delays ACK while it exceeds 1 MiB.
+Workers WebSocket API exposes no send-buffer size (`bufferedAmount` is unimplemented in workerd,
+issue #988), so a slow visitor can accumulate messages in DO memory. Damage is bounded by
+`MAX_WS_MESSAGE`, the per-name long-stream cap and rate limits. The edge updates the visitor
+attachment's outstanding count **before** calling `send()` in the same synchronous turn.
 
 ```
 Visitor WebSocket
@@ -298,8 +313,8 @@ visitor        edge                                agent
 - The agent sends the **text** message `tuzy-ping` immediately after READY, then every 15 s.
 - The edge auto-replies `tuzy-pong` via `setWebSocketAutoResponse` (does not wake the DO).
 - No `tuzy-pong` within 10 s → the agent closes and reconnects (same `instance_id`).
-- The edge treats an agent socket whose `getWebSocketAutoResponseTimestamp` is older than 45 s
-  (or null while connected > 45 s) as dead (§3.2 rule 2).
+- The edge treats an agent socket whose `getWebSocketAutoResponseTimestamp` is older than
+  `DEAD_SOCKET_AFTER` (default 45 s; or null while connected longer) as dead (§3.2 rule 2).
 - Known quirk: the auto-response applies to every hibernatable socket of the DO, so a **visitor**
   WebSocket text message that is exactly `tuzy-ping` is answered `tuzy-pong` by the edge and never
   reaches the local app. Accepted for v1.
@@ -317,7 +332,7 @@ agent                          edge runtime (auto-response)
 | `protocol_error` | both | Stream-level protocol violation (duplicate REQ_HEAD, bad sequence) |
 | `flow_control` | both | Data beyond granted credit |
 | `credit_timeout` | both | Waited > 30 s for credit |
-| `head_timeout` | edge | No RES_HEAD within `HEAD_TIMEOUT` (60 s) |
+| `head_timeout` | edge | No RES_HEAD within `HEAD_TIMEOUT` (policy, default 300 s) |
 | `stream_timeout` | edge | Stream exceeded `MAX_STREAM_SECONDS` or the long-stream budget |
 | `cancelled` | both | Visitor or local peer went away |
 | `local_error` | agent | Local target failed mid-response |

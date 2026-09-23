@@ -70,6 +70,10 @@ Deterministic dev ports: edge `8787`, sample app `3000`.
 - **Live test:** `POST /accounts/{id}/email/sending/send` from `login@tuzy.dev` to a non-verified Gmail plus-address → `queued`, daily usage 1. On Workers Free this is rejected, so the account has paid Email Sending.
 - **Result:** delivered to the Gmail **Inbox** (not spam). With `p=reject` published, inbox delivery implies DMARC alignment passed. The Worker `send_email` binding path is re-tested in phase 4.
 
+### Production (phase 1 skeleton, deployed 2026-09-24)
+- `https://tuzy.dev` → apex, `https://<name>.tuzy.dev` → tunnel label; `http://` → 301 https; TLS < 1.2 refused.
+- Two-level hosts (`a.b.tuzy.dev`) fail TLS: Universal SSL covers one wildcard level only, which matches the one-label name rule.
+
 ### Cloudflare account checklist (phase 1)
 - [x] Domain `tuzy.dev`, registered at **Porkbun** (not Cloudflare Registrar), expires 2027-09-23; transfer lock on (`clientTransferProhibited`)
 - [ ] Porkbun: auto-renew on. Extend to > 2 years remaining before the PSL application (phase 9)
@@ -77,10 +81,11 @@ Deterministic dev ports: edge `8787`, sample app `3000`.
 - [x] DNS (proxied): `AAAA @ 100::`, `AAAA * 100::`
 - [x] SSL/TLS: Always Use HTTPS on, minimum TLS 1.2 (SSL mode `full`, WebSockets on)
 - [x] Bot Fight Mode **off** (breaks webhooks)
-- [x] Paid Email Sending active (implies Workers Paid). Confirm usage/billing notifications in the dashboard
+- [x] Workers Paid active (renews 2026-10-19), covered by startup credits ($10k, expire ~2027-08). Set usage/billing notifications in the dashboard
 - [x] Email Service: `tuzy.dev` onboarded (`cf-bounce` MX/SPF, DKIM `cf-bounce`), status `ready`
 - [x] DMARC: `_dmarc TXT "v=DMARC1; p=reject; rua=mailto:dmarc@tuzy.dev"` (kept the onboarding's stricter `p=reject` rather than the plan's `quarantine`)
 - [x] Email Routing enabled (apex MX + SPF, DKIM `cf2024-1`): `abuse@`, `security@`, `dmarc@` → admin inbox (verified destination)
+- [x] Skeleton Worker `tuzy` deployed; routes `tuzy.dev/*`, `*.tuzy.dev/*` live
 - [ ] CI API token (Workers Scripts Edit, Workers Routes Edit, D1 Edit, KV Edit, Account Read) → GitHub secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` (needed from phase 9 deploys)
 
 ## License

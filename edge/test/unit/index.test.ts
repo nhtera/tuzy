@@ -1,25 +1,21 @@
 import { exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
-type Echo = { host: string | null; kind: string; name: string | null; baseDomain: string };
-
-async function echo(host: string): Promise<Echo> {
+async function get(host: string): Promise<{ status: number; body: string }> {
   const res = await exports.default.fetch("https://placeholder/", { headers: { host } });
-  expect(res.status).toBe(200);
-  return res.json();
+  return { status: res.status, body: await res.text() };
 }
 
 describe("skeleton worker", () => {
   it("classifies a tunnel host from the Host header", async () => {
-    const body = await echo("shop.tuzy.dev");
-    expect(body).toMatchObject({ host: "shop.tuzy.dev", kind: "tunnel", name: "shop" });
+    expect(await get("shop.tuzy.dev")).toEqual({ status: 200, body: "tuzy: tunnel shop\n" });
   });
 
   it("classifies the apex", async () => {
-    expect(await echo("tuzy.dev")).toMatchObject({ kind: "apex", name: null });
+    expect(await get("tuzy.dev")).toEqual({ status: 200, body: "tuzy: apex\n" });
   });
 
-  it("classifies a foreign host", async () => {
-    expect(await echo("example.com")).toMatchObject({ kind: "foreign", name: null });
+  it("rejects a foreign host with 404", async () => {
+    expect(await get("example.com")).toEqual({ status: 404, body: "tuzy: unknown host\n" });
   });
 });
