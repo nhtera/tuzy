@@ -1,0 +1,31 @@
+:root { --bg:#fff; --fg:#1d1f23; --muted:#6b7280; --line:#e5e7eb; --sel:#eef2ff; --ok:#15803d; --warn:#b45309; --err:#b91c1c; --code:#f6f8fa; }
+@media (prefers-color-scheme: dark) { :root { --bg:#111418; --fg:#e5e7eb; --muted:#9ca3af; --line:#262b33; --sel:#1e293b; --ok:#4ade80; --warn:#fbbf24; --err:#f87171; --code:#171b21; } }
+* { box-sizing: border-box; }
+body { margin:0; font:13px/1.4 system-ui, sans-serif; color:var(--fg); background:var(--bg); height:100vh; display:flex; flex-direction:column; }
+header { display:flex; gap:8px; align-items:center; padding:8px 12px; border-bottom:1px solid var(--line); }
+input, select, textarea, button { font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:4px; padding:3px 6px; }
+button { cursor:pointer; }
+.spacer { flex:1; }
+.muted { color:var(--muted); }
+main { flex:1; display:grid; grid-template-columns: minmax(360px, 45%) 1fr; min-height:0; }
+#list-pane { overflow:auto; border-right:1px solid var(--line); }
+#detail-pane { overflow:auto; padding:10px 14px; }
+table { border-collapse:collapse; width:100%; }
+th, td { text-align:left; padding:4px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+td.path { max-width:320px; overflow:hidden; text-overflow:ellipsis; }
+#list tbody tr { cursor:pointer; }
+#list tbody tr.selected { background:var(--sel); }
+.s2 { color:var(--ok); } .s3 { color:var(--muted); } .s4 { color:var(--warn); } .s5, .serr { color:var(--err); }
+.toolbar { display:flex; gap:8px; align-items:center; margin:4px 0 8px; }
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:8px; }
+.tabs button { border:none; border-bottom:2px solid transparent; border-radius:0; }
+.tabs button.active { border-bottom-color:var(--fg); }
+.kv { width:auto; margin-bottom:10px; } .kv td:first-child { color:var(--muted); padding-right:16px; }
+.kv td { white-space:pre-wrap; word-break:break-all; }
+pre { background:var(--code); padding:8px; border-radius:4px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin:0; }
+.note { background:var(--sel); padding:6px 8px; border-radius:4px; }
+.viewer-modes { display:flex; gap:4px; margin:6px 0; }
+.viewer-modes button.active { background:var(--sel); }
+dialog { border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); width:min(800px, 95vw); }
+dialog label { display:block; margin:6px 0; } dialog textarea { width:100%; font-family:ui-monospace, monospace; }
+kbd { border:1px solid var(--line); border-radius:3px; padding:0 4px; }

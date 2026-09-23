@@ -1,0 +1,22 @@
+[
+  {
+    "path": "/<script>alert(1)</script>?q=\"'><img src=x onerror=alert(2)>",
+    "header": ["X-Evil", "</td><script>alert(3)</script>"],
+    "body": "<svg onload=alert(4)>'; rm -rf / #\n$(touch /tmp/pwned) `id` \\ \"quoted\""
+  },
+  {
+    "path": "/null\u0000byte",
+    "header": ["X-Null", "v\u0000v"],
+    "body": "embedded\u0000null"
+  },
+  {
+    "path": "/rtl-override‮",
+    "header": ["X-RTL", "‮evil.exe"],
+    "body": "right-to-left ‮override text"
+  },
+  {
+    "path": "/quote'\"break",
+    "header": ["X-Quote", "a'b\"c`d"],
+    "body": "single' double\" backtick` dollar$(id) and a trailing backslash\\"
+  }
+]

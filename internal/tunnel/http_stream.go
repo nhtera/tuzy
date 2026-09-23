@@ -40,6 +40,7 @@ type httpStream struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	sendCredit *credit
+	rec        StreamRecorder
 
 	mu       sync.Mutex
 	queue    [][]byte // request body chunks waiting for the local app (bounded by StreamWindow)
@@ -83,6 +84,7 @@ func (h *httpStream) onFrame(f protocol.Frame) error {
 		h.mu.Lock()
 		h.reqEnded = true
 		h.mu.Unlock()
+		h.rec.RequestEnd() // the visitor's request body ended normally on the wire (inspector hook)
 		h.signal()
 	case protocol.Window:
 		return h.sendCredit.add(int64(f.Value))
@@ -143,6 +145,7 @@ func (h *httpStream) feed(pw *io.PipeWriter) {
 				return
 			}
 		}
+		h.rec.RequestBody(chunk) // inspector tee (capped, non-blocking)
 		if !discard {
 			if _, err := pw.Write(chunk); err != nil {
 				discard = true
@@ -167,6 +170,7 @@ func (h *httpStream) run() {
 	entry := AccessEntry{StreamID: h.id, Kind: "http", Method: h.head.Method, Path: h.head.Path, RemoteIP: h.head.RemoteIP}
 	defer func() {
 		entry.Duration = time.Since(start)
+		h.rec.End(entry.Err)
 		if h.s.cfg.onAccess != nil {
 			h.s.cfg.onAccess(entry)
 		}
@@ -199,10 +203,12 @@ func (h *httpStream) run() {
 	entry.Status = resp.StatusCode
 	go h.watchEarlyResponse(pr)
 
-	if err := h.s.sendJSON(h.ctx, protocol.ResHead, h.id, protocol.ResHeadMsg{Status: resp.StatusCode, Headers: responseHeaders(resp)}); err != nil {
+	headers := responseHeaders(resp)
+	h.rec.Response(resp.StatusCode, headers)
+	if err := h.s.sendJSON(h.ctx, protocol.ResHead, h.id, protocol.ResHeadMsg{Status: resp.StatusCode, Headers: headers}); err != nil {
 		return
 	}
-	n, err := h.s.sendBody(h.ctx, h.id, h.sendCredit, resp.Body)
+	n, err := h.s.sendBody(h.ctx, h.id, h.sendCredit, io.TeeReader(resp.Body, recorderWriter{h.rec}))
 	entry.Bytes = n
 	switch {
 	case err == nil:
@@ -244,7 +250,10 @@ func (h *httpStream) watchEarlyResponse(pr *io.PipeReader) {
 }
 
 func (h *httpStream) sendLocalError(body string) {
-	h.s.sendSmallResponse(h.ctx, h.id, h.sendCredit, http.StatusBadGateway, []protocol.Header{{"content-type", "text/plain; charset=utf-8"}}, body)
+	headers := []protocol.Header{{"content-type", "text/plain; charset=utf-8"}}
+	h.rec.Response(http.StatusBadGateway, headers)
+	h.rec.ResponseBody([]byte(body))
+	h.s.sendSmallResponse(h.ctx, h.id, h.sendCredit, http.StatusBadGateway, headers, body)
 }
 
 // targetURL joins the local target with the visitor's request-URI, keeping its escaping exactly.
@@ -262,21 +271,36 @@ func targetURL(target *url.URL, requestURI string) (*url.URL, error) {
 	return &u, nil
 }
 
-// buildRequest maps REQ_HEAD onto a request to the local target.
+// buildRequest maps REQ_HEAD onto a request to the local target. The body is streamed (its total
+// length is not known upfront: bodyLen -1 tells BuildLocalRequest to infer it from the visitor's
+// headers, same as the live path always has).
 func (h *httpStream) buildRequest(body io.Reader) (*http.Request, error) {
-	u, err := targetURL(h.s.cfg.target, h.head.Path)
+	return BuildLocalRequest(h.ctx, h.s.cfg.target, h.s.cfg.hostHeader, h.head.Method, h.head.Path, h.head.Headers, body, -1)
+}
+
+// BuildLocalRequest builds the *http.Request sent to a local target, shared by the live relay path
+// (http_stream.go, above) and the inspector's replay so the hop-by-hop header list, the
+// Content-Length/NoBody-by-method handling and the Fragment reset stay byte-identical between them.
+//
+// bodyLen is the exact number of body bytes when the caller already knows it (replay: a fully
+// buffered body — this always wins over any Content-Length header, which may be stale after an
+// edit). Pass -1 when body is streamed and of unknown length: ContentLength is then inferred from
+// the Content-Length / Transfer-Encoding headers, falling back to a per-method heuristic (the live
+// path, where the body has not been read yet).
+func BuildLocalRequest(ctx context.Context, target *url.URL, hostHeaderMode, method, path string, headers []protocol.Header, body io.Reader, bodyLen int64) (*http.Request, error) {
+	u, err := targetURL(target, path)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(h.ctx, h.head.Method, u.String(), body)
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
 	var visitorHost string
-	contentLength := int64(-1)
+	headerContentLength := int64(-1)
 	chunked := false
-	for _, kv := range h.head.Headers {
+	for _, kv := range headers {
 		name := strings.ToLower(kv[0])
 		switch {
 		case name == "host":
@@ -284,7 +308,7 @@ func (h *httpStream) buildRequest(body io.Reader) (*http.Request, error) {
 			continue
 		case name == "content-length":
 			if n, err := strconv.ParseInt(kv[1], 10, 64); err == nil && n >= 0 {
-				contentLength = n
+				headerContentLength = n
 			}
 			continue
 		case name == "transfer-encoding":
@@ -295,16 +319,21 @@ func (h *httpStream) buildRequest(body io.Reader) (*http.Request, error) {
 		}
 		req.Header.Add(kv[0], kv[1])
 	}
-	if h.s.cfg.hostHeader != "rewrite" && visitorHost != "" {
+	if hostHeaderMode != "rewrite" && visitorHost != "" {
 		req.Host = visitorHost
 	}
 	switch {
-	case contentLength >= 0:
-		req.ContentLength = contentLength
-		if contentLength == 0 {
+	case bodyLen >= 0:
+		req.ContentLength = bodyLen // caller already knows the exact length (e.g. replay)
+		if bodyLen == 0 {
 			req.Body = http.NoBody
 		}
-	case chunked || methodMayHaveBody(h.head.Method):
+	case headerContentLength >= 0:
+		req.ContentLength = headerContentLength
+		if headerContentLength == 0 {
+			req.Body = http.NoBody
+		}
+	case chunked || methodMayHaveBody(method):
 		req.ContentLength = -1 // unknown length: streamed (chunked) to the local app
 	default:
 		req.Body = http.NoBody

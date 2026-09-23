@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tuzy inspector</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <strong>tuzy inspector</strong>
+    <select id="f-tunnel" aria-label="Tunnel"><option value="">all tunnels</option></select>
+    <input id="f-method" placeholder="method" size="7" aria-label="Method filter">
+    <input id="f-status" placeholder="status (4xx, 404)" size="14" aria-label="Status filter">
+    <span class="spacer"></span>
+    <span id="conn" class="muted">connecting…</span>
+    <button id="clear" title="Clear all requests">Clear</button>
+  </header>
+  <main>
+    <section id="list-pane">
+      <table id="list">
+        <thead><tr><th>Time</th><th>Tunnel</th><th>Method</th><th>Path</th><th>Status</th><th>Duration</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p id="empty" class="muted">No requests yet. Traffic through your tunnel appears here live.</p>
+    </section>
+    <section id="detail-pane">
+      <p class="muted" id="detail-empty">Select a request (↑/↓), <kbd>r</kbd> to replay.</p>
+      <p class="muted" id="detail-evicted" hidden>This request was evicted from memory (bodies are memory-bounded). Pick another from the list.</p>
+      <div id="detail" hidden>
+        <div class="toolbar">
+          <span id="d-title"></span>
+          <span class="spacer"></span>
+          <button id="replay" title="Replay unchanged (r). Signed webhooks (e.g. Stripe) may reject replays after their tolerance window.">Replay</button>
+          <button id="edit">Edit &amp; Replay</button>
+          <button id="curl">Copy as curl</button>
+        </div>
+        <p id="d-note" class="note" hidden></p>
+        <nav class="tabs">
+          <button data-tab="req" class="active">Request</button>
+          <button data-tab="res">Response</button>
+        </nav>
+        <div id="tab-body"></div>
+      </div>
+    </section>
+  </main>
+  <dialog id="edit-dialog">
+    <form method="dialog" id="edit-form">
+      <h3>Edit &amp; Replay</h3>
+      <label>Method <input id="e-method" size="8"></label>
+      <label>Path <input id="e-path" size="60"></label>
+      <label>Headers (one per line, <code>Name: value</code>)<textarea id="e-headers" rows="8"></textarea></label>
+      <label>Body<textarea id="e-body" rows="10"></textarea></label>
+      <p id="e-note" class="note" hidden></p>
+      <div class="toolbar"><span class="spacer"></span><button value="cancel">Cancel</button><button id="e-send" value="send">Send to localhost</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

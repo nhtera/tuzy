@@ -44,6 +44,7 @@ type sessionConfig struct {
 	creditTimeout time.Duration
 	drainGrace    time.Duration
 	onAccess      func(AccessEntry)
+	recorder      Recorder // optional (local inspector)
 	logger        *slog.Logger
 }
 
@@ -70,6 +71,7 @@ type streamHandler interface {
 // session is one agent WebSocket connection (one epoch at the edge).
 type session struct {
 	cfg        *sessionConfig
+	name       string // tunnel name this connection serves (for the recorder)
 	conn       *websocket.Conn
 	ctx        context.Context
 	cancel     context.CancelCauseFunc
@@ -87,11 +89,12 @@ type session struct {
 	goaway        *protocol.GoawayMsg
 }
 
-func newSession(conn *websocket.Conn, cfg *sessionConfig) *session {
+func newSession(conn *websocket.Conn, cfg *sessionConfig, name string) *session {
 	ctx, cancel := context.WithCancelCause(context.Background())
 	conn.SetReadLimit(protocol.HeaderSize + protocol.MaxWSMessage + 1024)
 	return &session{
 		cfg:        cfg,
+		name:       name,
 		conn:       conn,
 		ctx:        ctx,
 		cancel:     cancel,
@@ -465,9 +468,13 @@ func (s *session) openStream(f protocol.Frame) error {
 	ctx, cancel := context.WithCancel(s.ctx)
 	var h streamHandler
 	if head.Kind == "ws" {
-		h = newWSStream(ctx, cancel, s, f.StreamID, head)
+		ws := newWSStream(ctx, cancel, s, f.StreamID, head)
+		ws.rec = s.begin(head)
+		h = ws
 	} else {
-		h = newHTTPStream(ctx, cancel, s, f.StreamID, head)
+		hs := newHTTPStream(ctx, cancel, s, f.StreamID, head)
+		hs.rec = s.begin(head)
+		h = hs
 	}
 	s.mu.Lock()
 	s.streams[f.StreamID] = h

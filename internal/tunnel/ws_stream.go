@@ -32,6 +32,7 @@ type wsStream struct {
 	cancel     context.CancelFunc
 	credit     *msgCredit
 	sendCredit *credit // byte credit for a non-101 answer (refused upgrade)
+	rec        StreamRecorder
 
 	mu          sync.Mutex
 	unacked     int                // edge→agent messages received and not yet ACKed (§5.3 tolerance)
@@ -147,6 +148,7 @@ func (w *wsStream) run() {
 	entry := AccessEntry{StreamID: w.id, Kind: "ws", Method: w.head.Method, Path: w.head.Path, RemoteIP: w.head.RemoteIP}
 	defer func() {
 		entry.Duration = time.Since(start)
+		w.rec.End(entry.Err)
 		if w.s.cfg.onAccess != nil {
 			w.s.cfg.onAccess(entry)
 		}
@@ -164,6 +166,7 @@ func (w *wsStream) run() {
 	if sp := local.Subprotocol(); sp != "" {
 		head = append(head, protocol.Header{"sec-websocket-protocol", sp})
 	}
+	w.rec.Response(http.StatusSwitchingProtocols, head)
 	if err := w.s.sendJSON(w.ctx, protocol.ResHead, w.id, protocol.ResHeadMsg{Status: http.StatusSwitchingProtocols, Headers: head}); err != nil {
 		return
 	}
@@ -205,6 +208,7 @@ func (w *wsStream) pumpEdge(local *websocket.Conn, localDone <-chan struct{}) {
 			w.mu.Lock()
 			w.unacked--
 			w.mu.Unlock()
+			w.rec.WSMessage(true)
 			w.s.sendCtrl(protocol.EncodeU32(protocol.Ack, w.id, 1))
 			continue
 		case rc != nil:
@@ -278,6 +282,7 @@ func (w *wsStream) pumpLocal(local *websocket.Conn) {
 		if err := w.s.sendData(w.ctx, protocol.Encode(ft, w.id, data)); err != nil {
 			return
 		}
+		w.rec.WSMessage(false)
 	}
 }
 
@@ -338,6 +343,8 @@ func (w *wsStream) dial() (*websocket.Conn, int, error) {
 }
 
 func (w *wsStream) respond(status int, headers []protocol.Header, body string) {
+	w.rec.Response(status, headers)
+	w.rec.ResponseBody([]byte(body))
 	// Content-Length would be wrong after LimitReader truncation; let the edge stream it.
 	filtered := headers[:0:0]
 	for _, h := range headers {

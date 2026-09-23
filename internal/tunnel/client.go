@@ -30,6 +30,7 @@ type Options struct {
 	UserAgent  string   // e.g. "tuzy/1.0.0 darwin/arm64"
 	OnEvent    func(Event)
 	OnAccess   func(AccessEntry)
+	Recorder   Recorder // optional: local inspector
 	Logger     *slog.Logger
 
 	// Tunables (zero = default); tests shrink them.
@@ -86,6 +87,19 @@ type apiErrorBody struct {
 	} `json:"error"`
 }
 
+// NewLocalTransport is the default transport used to reach a local target: no proxy (it's on the
+// same machine), no compression (so bytes relayed to the visitor match what the local app sent), a
+// small idle-connection pool. Shared by the tunnel client's default and the inspector's replay so
+// both paths behave identically.
+func NewLocalTransport() *http.Transport {
+	return &http.Transport{
+		Proxy:               nil,
+		DisableCompression:  true,
+		MaxIdleConnsPerHost: 64,
+		IdleConnTimeout:     90 * time.Second,
+	}
+}
+
 // NewInstanceID returns a random per-process id (22 chars of base64url).
 func NewInstanceID() string {
 	var b [16]byte
@@ -131,12 +145,7 @@ func NewClient(opts Options) (*Client, error) {
 		}
 	}
 	if opts.LocalTransport == nil {
-		opts.LocalTransport = &http.Transport{
-			Proxy:               nil,
-			DisableCompression:  true,
-			MaxIdleConnsPerHost: 64,
-			IdleConnTimeout:     90 * time.Second,
-		}
+		opts.LocalTransport = NewLocalTransport()
 	}
 	return &Client{
 		opts:       opts,
@@ -153,6 +162,7 @@ func NewClient(opts Options) (*Client, error) {
 			creditTimeout: opts.CreditTimeout,
 			drainGrace:    opts.DrainGrace,
 			onAccess:      opts.OnAccess,
+			recorder:      opts.Recorder,
 			logger:        opts.Logger,
 		},
 	}, nil
@@ -322,7 +332,7 @@ func (c *Client) connect(ctx context.Context) (*session, *protocol.ReadyMsg, err
 		return nil, nil, &retryError{err: fmt.Errorf("connect %s: %w", c.opts.Server.Host, err)}
 	}
 
-	s := newSession(conn, c.cfg)
+	s := newSession(conn, c.cfg, name)
 	if c.onSession != nil {
 		c.onSession(s)
 	}

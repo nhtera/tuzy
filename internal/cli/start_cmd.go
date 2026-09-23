@@ -14,10 +14,11 @@ import (
 
 func newStartCmd() *cobra.Command {
 	var (
-		all   bool
-		file  string
-		quiet bool
-		force bool
+		all     bool
+		file    string
+		quiet   bool
+		force   bool
+		inspect inspectOpts
 	)
 	cmd := &cobra.Command{
 		Use:   "start [name…] | --all",
@@ -77,12 +78,14 @@ func newStartCmd() *cobra.Command {
 					return fmt.Errorf("tunnels.%s: %w", s.name, err)
 				}
 			}
-			return runTunnels(cmd.Context(), env, specs, ui.New(cmd.OutOrStdout(), quiet, env.displayServer()))
+			return runTunnels(cmd.Context(), env, specs, ui.New(cmd.OutOrStdout(), quiet, env.displayServer()), inspect, cmd.OutOrStdout())
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "start every tunnel in the file")
 	cmd.Flags().StringVarP(&file, "file", "f", config.ProjectFile, "project file")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "don't print the access log")
 	cmd.Flags().BoolVar(&force, "force", false, "take over names that are live on another device")
+	cmd.Flags().BoolVar(&inspect.disabled, "no-inspect", false, "don't start the local request inspector")
+	cmd.Flags().StringVar(&inspect.addr, "inspect-addr", "", "inspector address (default 127.0.0.1:4040)")
 	return cmd
 }

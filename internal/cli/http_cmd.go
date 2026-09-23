@@ -19,6 +19,7 @@ func newHTTPCmd() *cobra.Command {
 		force      bool
 		hostHeader string
 		quiet      bool
+		inspect    inspectOpts
 	)
 	cmd := &cobra.Command{
 		Use:   "http <port | host:port | http://host:port>",
@@ -55,12 +56,14 @@ Without --name your default name is used (the first run asks you to pick one).`,
 			}
 			name = resolved
 			p := ui.New(cmd.OutOrStdout(), quiet, env.displayServer())
-			return runTunnels(cmd.Context(), env, []tunnelSpec{{name: name, target: target, hostHeader: hostHeader, force: force}}, p)
+			return runTunnels(cmd.Context(), env, []tunnelSpec{{name: name, target: target, hostHeader: hostHeader, force: force}}, p, inspect, cmd.OutOrStdout())
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "tunnel name (default: your default name)")
 	cmd.Flags().BoolVar(&force, "force", false, "take over the name even if it is live on another device")
 	cmd.Flags().StringVar(&hostHeader, "host-header", "preserve", `Host header sent to the local app: "preserve" (tunnel host) or "rewrite" (local target host)`)
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "don't print the access log")
+	cmd.Flags().BoolVar(&inspect.disabled, "no-inspect", false, "don't start the local request inspector")
+	cmd.Flags().StringVar(&inspect.addr, "inspect-addr", "", "inspector address (default 127.0.0.1:4040)")
 	return cmd
 }
