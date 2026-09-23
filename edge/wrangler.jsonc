@@ -1,0 +1,24 @@
+// Single top-level config: no named envs (no staging). Production = `wrangler deploy`.
+// Local dev = `npm run dev`, which runs wrangler dev on a generated copy without `routes` and with
+// BASE_DOMAIN="localhost" (routes make wrangler dev rewrite Host; see scripts/gen-dev-config.mjs).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tuzy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22", // ≤ newest date the vitest-pool-workers workerd supports
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "tuzy.dev/*", "zone_name": "tuzy.dev" },
+    { "pattern": "*.tuzy.dev/*", "zone_name": "tuzy.dev" }
+  ],
+  "vars": {
+    "BASE_DOMAIN": "tuzy.dev"
+  },
+  // Invocation logs off: one log per visitor request would exceed the 20M/mo included events at
+  // launch scale and retain visitor URLs. console.* logs (errors, admin/audit events) stay on.
+  "observability": { "enabled": true, "logs": { "invocation_logs": false } },
+  "dev": { "port": 8787 }
+  // send_email binding: added in phase 4 (block recorded in README "GATE A").
+  // Binding ownership: phase 2 TUNNEL DO + NAMES_KV; phase 4 DB, RL_OTP_*, RL_API, RL_CONNECT,
+  // */5 outbox cron; phase 7 RL_TUNNEL, RL_ABUSE, daily cron, INTERSTITIAL_SECRET; phase 8 RL_DIAGNOSE.
+}

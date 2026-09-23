@@ -1,0 +1,36 @@
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Go CLI
+/bin/
+/dist/
+/tuzy
+/tuzy.exe
+*.test
+coverage.out
+coverage.html
+
+# Edge (Cloudflare Worker)
+node_modules/
+.wrangler/
+edge/dist/
+edge/wrangler.dev.gen.jsonc
+
+# Secrets / local env (use .dev.vars.example / .env.example for templates)
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# AI
+.claude
+Plans

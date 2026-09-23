@@ -1,0 +1,24 @@
+{
+  "name": "tuzy-edge",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/gen-dev-config.mjs && wrangler dev -c wrangler.dev.gen.jsonc",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "cf-typegen": "wrangler types --include-runtime false --strict-vars false src/worker-configuration.d.ts"
+  },
+  "dependencies": {
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@cloudflare/workers-types": "^5.20260923.1",
+    "jsonc-parser": "^3.3.1",
+    "typescript": "~5.9.3",
+    "vitest": "~4.1.11",
+    "wrangler": "^4.137.0"
+  }
+}
