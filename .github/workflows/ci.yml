@@ -28,6 +28,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx vitest run --project unit
+      - run: npx vitest run --project do
 
   go:
     strategy:

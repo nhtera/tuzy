@@ -5,6 +5,11 @@ linters:
     - misspell
     - gocritic
     - revive
+  exclusions:
+    rules:
+      # Test HTTP handlers write to httptest recorders; unchecked writes are noise there.
+      - path: _test\.go
+        linters: [errcheck]
 formatters:
   enable:
     - gofmt
