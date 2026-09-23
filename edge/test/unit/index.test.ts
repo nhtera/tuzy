@@ -14,7 +14,7 @@ describe("worker routing", () => {
 
   it("serves the health endpoint", async () => {
     const res = await get("https://tuzy.dev/api/v1/health", "tuzy.dev");
-    expect(await res.json()).toEqual({ ok: true });
+    expect(await res.json()).toMatchObject({ ok: true, min_proto: 1, max_proto: 1 });
   });
 
   it("returns JSON 404 for unknown API paths", async () => {

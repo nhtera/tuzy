@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -83,4 +84,21 @@ func TestWhoamiShowsLongStreamUsage(t *testing.T) {
 func toJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+func TestServiceInstallDryRunRendersTheUnit(t *testing.T) {
+	dir := t.TempDir()
+	proj := dir + "/tuzy.toml"
+	if err := os.WriteFile(proj, []byte("[tunnels.web]\naddr = \"3000\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := run(t, "", "service", "install", "--dry-run", "--file", proj)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, want := range []string{"start", "--all", proj, "--log-format", "json"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
 }

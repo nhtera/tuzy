@@ -71,6 +71,18 @@ func (s *Store) Set(host, token string) error {
 	return s.writeFile(creds)
 }
 
+// SetFile stores the token only in the 0600 credentials file (headless services without a
+// keychain session), removing any keychain copy so Get can't return a stale one.
+func (s *Store) SetFile(host, token string) error {
+	_ = keyring.Delete(keyringService, host)
+	creds, err := s.readFile()
+	if err != nil {
+		return err
+	}
+	creds[host] = token
+	return s.writeFile(creds)
+}
+
 // Delete removes the token for host from both places.
 func (s *Store) Delete(host string) error {
 	if err := s.deleteFromFile(host); err != nil {

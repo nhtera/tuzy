@@ -4,6 +4,7 @@
 package inspector
 
 import (
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -138,6 +139,12 @@ type TunnelInfo struct {
 	PublicURL  string
 	Target     *url.URL
 	HostHeader string // "preserve" | "rewrite"
+	// Transport is the tunnel's own local transport (shared default for http, a per-target TLS
+	// clone for https, a fileserver.RoundTripper for file://): replay uses it instead of the
+	// server's default so a replayed request reaches the same place the live traffic did. Nil
+	// falls back to the server's default transport (e.g. a TunnelInfo set by an older caller, or a
+	// test that only cares about the http default).
+	Transport http.RoundTripper
 }
 
 // Store is a bounded in-memory ring of entries with subscriber fan-out.

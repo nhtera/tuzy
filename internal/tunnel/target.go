@@ -1,53 +1,21 @@
 package tunnel
 
-import (
-	"fmt"
-	"net"
-	"net/url"
-	"strconv"
-	"strings"
-)
+import "net/url"
 
-// ParseTarget turns a user target into a local URL:
-//
-//	3000                 → http://localhost:3000
-//	127.0.0.1:8080       → http://127.0.0.1:8080
-//	localhost:5173       → http://localhost:5173
-//	http://localhost:5173 → as-is
-//
-// https:// and file:// targets arrive in a later version (phase 8).
-func ParseTarget(s string) (*url.URL, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil, fmt.Errorf("missing target: use a port (3000), host:port or http://host:port")
-	}
-	if port, err := strconv.Atoi(s); err == nil {
-		if port < 1 || port > 65535 {
-			return nil, fmt.Errorf("invalid port %d", port)
-		}
-		return &url.URL{Scheme: "http", Host: net.JoinHostPort("localhost", s)}, nil
-	}
-	if !strings.Contains(s, "://") {
-		host, port, err := net.SplitHostPort(s)
-		if err != nil || host == "" || port == "" {
-			return nil, fmt.Errorf("invalid target %q: use a port (3000), host:port or http://host:port", s)
-		}
-		return &url.URL{Scheme: "http", Host: s}, nil
-	}
-	u, err := url.Parse(s)
-	if err != nil {
-		return nil, fmt.Errorf("invalid target %q: %w", s, err)
-	}
-	switch u.Scheme {
-	case "http":
-	case "https", "file":
-		return nil, fmt.Errorf("%s:// targets are not supported yet", u.Scheme)
-	default:
-		return nil, fmt.Errorf("unsupported target scheme %q", u.Scheme)
-	}
-	if u.Host == "" {
-		return nil, fmt.Errorf("invalid target %q: missing host", s)
-	}
-	u.RawQuery, u.Fragment = "", ""
-	return u, nil
-}
+// fileTargetScheme marks Options.Target as a file:// upstream (internal/fileserver behind
+// Options.LocalTransport, not a network dial): FileTarget returns the placeholder URL used for it,
+// and ws_stream.go checks this scheme to answer 501 instead of attempting a dial.
+const fileTargetScheme = "file"
+
+// FileTarget is the Options.Target placeholder for a file:// upstream (internal/upstream +
+// internal/fileserver build the matching Options.LocalTransport). Its host/path carry no meaning —
+// BuildLocalRequest joins them into the request path, so both are left empty and the served
+// directory is only ever named where a human reads it (the "serving files from …" startup line).
+func FileTarget() *url.URL { return &url.URL{Scheme: fileTargetScheme, Host: "local-file"} }
+
+// A user-supplied target (bare port, host:port, http://, https:// or file://) is parsed by
+// internal/upstream (upstream.Parse), which also builds the per-kind transport internal/cli wires
+// into Options.LocalTransport. This package no longer parses targets itself (its former
+// ParseTarget was dead code outside its own test — every real caller goes through
+// internal/upstream); internal/upstream deliberately does not import this package, to avoid an
+// import cycle with this package's own upstream-target test files (package tunnel).

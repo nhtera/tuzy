@@ -18,7 +18,7 @@ import { connectAuthz } from "./lib/name-repo";
 import { addUsage, longStreamBudget, monthKey, readUsage } from "./lib/usage";
 import { interstitialPage } from "./pages/interstitial-page";
 import { errorResponse } from "./api/errors";
-import { META_CONNECT, META_CONTINENT, META_PROTO, META_REMOTE_IP, visitorToAgentHeaders } from "./lib/headers";
+import { META_CONNECT, META_CONTINENT, META_PROTO, META_REMOTE_IP, META_SKIP_WARNING, visitorToAgentHeaders } from "./lib/headers";
 import { apiError, statusPage } from "./pages/status-pages";
 import { Credit, ReceiveWindow } from "./protocol/flow";
 import {
@@ -387,7 +387,10 @@ export class TunnelObject extends DurableObject<Env> {
   private async handleVisitor(request: Request, url: URL): Promise<Response> {
     if (this.suspended) return statusPage("suspended");
     const trusted = this.trusted;
-    if (!trusted && this.currentAgent()?.att.hello && wantsInterstitial(request.method, request.headers)) {
+    // Automation (Playwright, screenshot bots) opts out with a request header; a phisher can't set
+    // request headers on a victim's navigation, so this can't be abused against visitors.
+    const skip = request.headers.get(META_SKIP_WARNING) === "1";
+    if (!trusted && !skip && this.currentAgent()?.att.hello && wantsInterstitial(request.method, request.headers)) {
       const host = url.hostname;
       if (!(await hasValidCookie(this.env.INTERSTITIAL_SECRET, host, request.headers.get("cookie"), nowSec()))) {
         return interstitialPage(this.name || host.split(".")[0]!, host, url.pathname + url.search, this.env.BASE_DOMAIN);

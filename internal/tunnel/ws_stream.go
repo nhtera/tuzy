@@ -289,6 +289,12 @@ func (w *wsStream) pumpLocal(local *websocket.Conn) {
 // dial connects to the local WebSocket. On failure it relays the local HTTP answer (or a 502) as a
 // normal response and returns an error. It returns the status reported to the visitor.
 func (w *wsStream) dial() (*websocket.Conn, int, error) {
+	if w.s.cfg.target.Scheme == fileTargetScheme {
+		// A file:// target has no socket to upgrade to: answer 501 directly, no dial attempt.
+		w.respond(http.StatusNotImplemented, []protocol.Header{{"content-type", "text/plain; charset=utf-8"}},
+			"tuzy: websocket upgrades are not supported for file:// targets\n")
+		return nil, http.StatusNotImplemented, errors.New("websocket upgrade to a file target is not supported")
+	}
 	u, err := targetURL(w.s.cfg.target, w.head.Path)
 	if err != nil {
 		w.respond(http.StatusBadGateway, nil, "tuzy: bad websocket path\n")

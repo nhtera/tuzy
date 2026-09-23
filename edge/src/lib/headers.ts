@@ -20,6 +20,8 @@ export interface VisitorMeta {
 export const META_REMOTE_IP = "x-tuzy-remote-ip";
 export const META_CONTINENT = "x-tuzy-continent";
 export const META_PROTO = "x-tuzy-proto";
+/** Set by the Worker when the visitor sent `tuzy-skip-warning` (automation opts out of the interstitial). */
+export const META_SKIP_WARNING = "x-tuzy-skip-warning";
 /** JSON connect meta on the internal `connect.internal` request. */
 export const META_CONNECT = "x-tuzy-meta";
 

@@ -9,7 +9,7 @@
 import { hasConnectedMarker } from "./lib/connected-marker";
 import { nowSec } from "./lib/ids";
 import { CONTINUE_PATH, isContinueFromInterstitial, sanitizeTo, setCookieHeader, signCookie } from "./lib/interstitial";
-import { META_CONTINENT, META_PROTO, META_REMOTE_IP, stripEdgeInternal } from "./lib/headers";
+import { META_CONTINENT, META_PROTO, META_REMOTE_IP, META_SKIP_WARNING, stripEdgeInternal } from "./lib/headers";
 import { statusPage } from "./pages/status-pages";
 
 export const RESERVED_PREFIX = "/__tuzy/";
@@ -28,8 +28,10 @@ export async function proxyToTunnel(request: Request, env: Env, ctx: ExecutionCo
   // Meta is read BEFORE stripping, then re-set under edge-owned names.
   const remoteIp = request.headers.get("cf-connecting-ip") ?? "";
   const continent = String((request.cf as { continent?: string } | undefined)?.continent ?? "");
+  const skipWarning = request.headers.has("tuzy-skip-warning"); // any value, like ngrok-skip-browser-warning
   const headers = new Headers(request.headers);
   stripEdgeInternal(headers);
+  if (skipWarning) headers.set(META_SKIP_WARNING, "1");
   headers.set(META_REMOTE_IP, remoteIp);
   headers.set(META_CONTINENT, continent);
   headers.set(META_PROTO, url.protocol.replace(":", ""));

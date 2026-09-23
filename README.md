@@ -6,7 +6,29 @@
 - **CLI** (repo root Go module `github.com/nhtera/tuzy`, entry `cmd/tuzy`): tunnel agent, name management, local inspector.
 - **Protocol** (`protocol/PROTOCOL.md`): the normative agent ↔ edge wire protocol v1, with golden vectors in `protocol/testdata/frames.json`.
 
-> Status: phase 1 skeleton. See `Plans/` (local only) for the roadmap.
+> Status: pre-release (phases 1–8 built; release & launch pending). See `Plans/` (local only) for the roadmap.
+
+## Usage
+
+```sh
+tuzy login                                # email code; token kept in the OS keychain
+tuzy http 3000                            # → https://<your-default-name>.tuzy.dev
+tuzy http 3000 --name shop                # a specific name (claimed on first use)
+tuzy http https://localhost:8443 --upstream-insecure   # self-signed local HTTPS
+tuzy http file://./public                 # serve a folder read-only (dotfiles hidden)
+tuzy start --all                          # every [tunnels.*] in ./tuzy.toml
+tuzy names ls | add | rename | default | rm
+tuzy tokens create --scope connect        # CI token (use as TUZY_TOKEN)
+```
+
+- **Inspector:** `http://127.0.0.1:4040` lists requests with replay and copy-as-curl. Traffic stays in memory on your machine; turn it off with `--no-inspect`.
+- **Logs:** `--log stdout|stderr|<file>`, `--log-format term|logfmt|json`, `--log-level debug|info|warn|error`. Defaults can go in the user config (`tuzy config path`).
+- **Background service:** `tuzy service install && tuzy service start` runs `tuzy start --all` at login. It uses launchd on macOS, `systemd --user` on Linux (run `loginctl enable-linger $USER` to keep it up after logout) and a logon task on Windows. `tuzy service status` shows the log file.
+- **Troubleshooting:** `tuzy diagnose [--json]` checks proxy, DNS, TLS interception, API, clock skew, WebSockets, token and inspector port.
+- **Updates:** `tuzy update [--check] [--version vX.Y.Z]` downloads a signed release and replaces the binary atomically. Homebrew, Scoop and `go install` users get their package-manager command instead. A notice appears at most once a day; turn it off with `TUZY_NO_UPDATE_CHECK=1` or `update_check = false`.
+- **Config:** `tuzy config check | edit [--project] | path | add-token -`. Pass the token on stdin (`-`) to keep it out of shell history.
+- **Completion:** run `tuzy completion bash|zsh|fish|powershell` and follow `tuzy completion <shell> --help`.
+- **Automation:** send the request header `tuzy-skip-warning: 1` to skip the browser warning page on new accounts' tunnels.
 
 ## Layout
 

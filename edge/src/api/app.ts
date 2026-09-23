@@ -8,6 +8,7 @@ import { adminRoutes } from "./admin-routes";
 import { authRoutes } from "./auth-routes";
 import type { AppEnv } from "./auth-middleware";
 import { handleConnect } from "./connect";
+import { healthRoutes } from "./health-routes";
 import { errorResponse, toResponse } from "./errors";
 import { meRoutes } from "./me-routes";
 import { namesRoutes } from "./names-routes";
@@ -19,7 +20,7 @@ import { aupPage, privacyPage, securityTxt, termsPage } from "../pages/legal-pag
 export const apiApp = new Hono<AppEnv>();
 
 apiApp.onError((err) => toResponse(err));
-apiApp.get("/api/v1/health", (c) => c.json({ ok: true }));
+apiApp.route("/api/v1", healthRoutes);
 apiApp.get("/api/v1/connect", (c) => handleConnect(c.req.raw, c.env, c.executionCtx as ExecutionContext));
 apiApp.route("/api/v1/auth", authRoutes);
 apiApp.route("/api/v1/me", meRoutes);

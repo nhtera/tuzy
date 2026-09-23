@@ -38,10 +38,18 @@ func toProtocolHeaders(hs [][2]string) []protocol.Header {
 // tunnel.BuildLocalRequest with the live proxy path (M6) so the hop-by-hop header list, the
 // Content-Length/NoBody-by-method handling and the target-URL join (incl. Fragment reset) are
 // identical — only bodyLen differs: replay always knows the exact body length upfront.
-func (s *Store) replay(ctx context.Context, rt http.RoundTripper, req ReplayRequest, replayOf uint64) (uint64, error) {
+//
+// defaultRT is used only when the tunnel's own TunnelInfo.Transport is nil; every tunnel set up by
+// internal/cli carries its own (the shared http default, an https TLS clone, or a fileserver
+// RoundTripper), so replay reaches the same place the live traffic did.
+func (s *Store) replay(ctx context.Context, defaultRT http.RoundTripper, req ReplayRequest, replayOf uint64) (uint64, error) {
 	t, ok := s.Tunnel(req.Tunnel)
 	if !ok || t.Target == nil {
 		return 0, fmt.Errorf("unknown tunnel %q", req.Tunnel)
+	}
+	rt := t.Transport
+	if rt == nil {
+		rt = defaultRT
 	}
 	if req.Method == "" || !strings.HasPrefix(req.Path, "/") {
 		return 0, errors.New("method and a path starting with / are required")

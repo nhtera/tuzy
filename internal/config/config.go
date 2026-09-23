@@ -26,13 +26,20 @@ const ProjectFile = "tuzy.toml"
 type User struct {
 	Server      string `toml:"server"`
 	InspectAddr string `toml:"inspect_addr"`
-	Log         string `toml:"log"`
+	Log         string `toml:"log"`        // stdout | stderr | <path> | false
+	LogFormat   string `toml:"log_format"` // term | logfmt | json
+	LogLevel    string `toml:"log_level"`  // debug | info | warn | error
+	UpdateCheck *bool  `toml:"update_check"`
 }
 
 // Tunnel is one [tunnels.<name>] entry of tuzy.toml.
 type Tunnel struct {
 	Addr       string `toml:"addr"`
 	HostHeader string `toml:"host_header"`
+	// UpstreamInsecure and UpstreamSNI configure an https:// addr's upstream TLS (see
+	// internal/upstream.TLSOptions); setting either on an http:// or file:// target is an error.
+	UpstreamInsecure bool   `toml:"upstream_insecure"`
+	UpstreamSNI      string `toml:"upstream_sni"`
 }
 
 // Project is a parsed tuzy.toml.
