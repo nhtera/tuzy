@@ -140,7 +140,6 @@ function closeSocket(ws: WebSocket, code: number, reason: string): void {
 /** Callbacks an AgentConn needs from its TunnelObject (kept off the public RPC surface). */
 interface ConnHooks {
   acceptVisitorSocket(epoch: number, id: number, headers: Headers): Response;
-  agentAlive(epoch: number): boolean;
   admitLong(epoch: number, id: number): true | "stream_timeout" | "long_stream_budget";
   releaseLong(epoch: number, id: number): void;
   /** The connection became idle: persist state that must survive hibernation. */
@@ -151,12 +150,9 @@ interface ConnHooks {
 class AgentConn implements StreamHost {
   readonly connCredit: Credit;
   readonly streams = new Map<number, HttpStream>();
-  /** When the agent last sent a frame on this connection: any inbound frame proves it is alive. */
-  lastRecvAt = Date.now();
   /** Response bytes received and not yet granted back (connection receive window, §4.1). */
   private readonly recvWindow = new ReceiveWindow(CONN_WINDOW);
   private connUngranted = 0;
-  private liveness?: ReturnType<typeof setInterval>;
 
   constructor(
     readonly ws: WebSocket,
@@ -203,26 +199,10 @@ class AgentConn implements StreamHost {
     return this.hooks.acceptVisitorSocket(this.epoch, id, headers);
   }
 
-  /**
-   * Registers a stream. While any stream is open, one timer per connection checks that the agent
-   * is alive (socket open, heartbeat within DEAD_SOCKET_SECONDS) and fails every stream (502) when
-   * it is not, instead of letting visitors wait out HEAD_TIMEOUT (300 s) on an agent that went
-   * silent (e.g. its socket was dropped without a close event, which happens around deploys).
-   */
-  track(id: number, stream: HttpStream): void {
-    this.streams.set(id, stream);
-    this.liveness ??= setInterval(() => {
-      if (Date.now() - this.lastRecvAt < this.policy.deadSocketMs || this.hooks.agentAlive(this.epoch)) return;
-      for (const s of [...this.streams.values()]) s.agentGone();
-    }, Math.max(250, Math.min(5_000, this.policy.deadSocketMs / 4)));
-  }
-
   onDone(id: number): void {
     this.streams.delete(id);
     this.hooks.releaseLong(this.epoch, id);
     if (this.streams.size === 0) {
-      if (this.liveness !== undefined) clearInterval(this.liveness);
-      this.liveness = undefined;
       this.flushConn();
       this.hooks.persistIdle(this);
     }
@@ -258,11 +238,6 @@ export class TunnelObject extends DurableObject<Env> {
   private markerWritten = false;
   private readonly hooks: ConnHooks = {
     acceptVisitorSocket: (epoch, id, headers) => this.acceptVisitorSocket(epoch, id, headers),
-    agentAlive: (epoch) => {
-      const ws = this.agentSocket(epoch);
-      const att = ws?.deserializeAttachment() as AgentAttachment | null | undefined;
-      return !!ws && !!att && !this.isDead(ws, att, Date.now());
-    },
     admitLong: (epoch, id) => this.admitLong(epoch, id),
     releaseLong: (epoch, id) => this.releaseLong(epoch, id),
     persistIdle: (conn) => {
@@ -444,8 +419,7 @@ export class TunnelObject extends DurableObject<Env> {
   private forwardVisitor(request: Request, url: URL): Response | Promise<Response> {
     if (this.suspended) return statusPage("suspended");
     const current = this.currentAgent();
-    // A silently dead agent (see AgentConn.track) is offline now, not after the head timeout.
-    if (!current || !current.att.hello || this.isDead(current.ws, current.att, Date.now())) return statusPage("offline");
+    if (!current || !current.att.hello) return statusPage("offline");
     if (current.att.draining) return statusPage("draining");
     const { ws, att } = current;
     const conn = this.conn(ws, att.epoch);
@@ -477,7 +451,7 @@ export class TunnelObject extends DurableObject<Env> {
     if (head.byteLength - 5 > MAX_JSON_PAYLOAD) return statusPage("header_too_large");
 
     const stream = new HttpStream(id, conn, kind, request.method);
-    conn.track(id, stream);
+    conn.streams.set(id, stream);
     return stream.start(head, kind === "http" ? request.body : null, request.signal);
   }
 
@@ -591,7 +565,6 @@ export class TunnelObject extends DurableObject<Env> {
 
   private dispatch(ws: WebSocket, att: AgentAttachment, f: Frame): void {
     const conn = this.conn(ws, att.epoch);
-    conn.lastRecvAt = Date.now();
     switch (f.type) {
       case FrameType.DRAIN:
         att.draining = true;
