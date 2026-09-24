@@ -33,7 +33,7 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    files: [README.md]
+    files: [README.md, LICENSE]
 
 checksum:
   name_template: checksums.txt
@@ -87,7 +87,7 @@ scoops:
     skip_upload: auto
     homepage: https://tuzy.dev
     description: Expose localhost at a stable https://<name>.tuzy.dev URL
-    license: "{{ .Env.TUZY_LICENSE }}"
+    license: Apache-2.0
 
 release:
   github:

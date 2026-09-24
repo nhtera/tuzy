@@ -80,7 +80,6 @@ jobs:
           version: "~> v2"
           args: release --snapshot --clean --skip=sign
         env:
-          TUZY_LICENSE: ${{ vars.TUZY_LICENSE }}
           TUZY_RELEASE_KEY: unused-in-snapshot
           TAP_GITHUB_TOKEN: unused-in-snapshot
       - run: sh scripts/install_test.sh

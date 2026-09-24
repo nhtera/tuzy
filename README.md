@@ -112,4 +112,4 @@ Deterministic dev ports: edge `8787`, sample app `3000`.
 
 ## License
 
-TBD
+Apache-2.0, see [LICENSE](LICENSE).
