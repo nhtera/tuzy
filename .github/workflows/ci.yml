@@ -98,7 +98,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
-          args: release --snapshot --clean --skip=sign --single-target
+          args: release --snapshot --clean --skip=sign  # release (not build): the test needs the archives + checksums.txt
         env:
           TUZY_RELEASE_KEY: unused-in-snapshot
           TAP_GITHUB_TOKEN: unused-in-snapshot
