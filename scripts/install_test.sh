@@ -41,8 +41,11 @@ run || { echo "FAIL good install"; exit 1; }
 "$work/bin/tuzy" version | grep -q "$version" && echo "PASS good install"
 
 echo "== tampered archive"
+# Tamper with exactly the archive install.sh will pick (same OS/arch mapping as the installer).
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
-arch=$(find "$rel" -name "tuzy_*_${os}_*.tar.gz" | head -1)
+case "$(uname -m)" in x86_64 | amd64) cpu=amd64 ;; arm64 | aarch64) cpu=arm64 ;; *) cpu=$(uname -m) ;; esac
+arch="$rel/tuzy_${version}_${os}_${cpu}.tar.gz"
+[ -f "$arch" ] || { echo "FAIL no archive for ${os}/${cpu}"; exit 1; }
 cp "$arch" "$work/orig" && printf 'x' >>"$arch"
 if run 2>"$work/err"; then echo "FAIL tampered archive installed"; exit 1; fi
 grep -q "sha256 mismatch" "$work/err" && echo "PASS tampered archive refused"

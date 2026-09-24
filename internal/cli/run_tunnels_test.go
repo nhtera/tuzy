@@ -52,6 +52,7 @@ func TestBuildTargetFileDisplayNamesTheServedDirectory(t *testing.T) {
 	dir := t.TempDir()
 	var out bytes.Buffer
 	target, display, transport, err := buildTarget("file://"+filepath.ToSlash(dir), upstream.TLSOptions{}, upstream.ResolveCLIDir, &out)
+	t.Cleanup(func() { closeTransport(transport) }) // Windows: release the dir handle
 	if err != nil {
 		t.Fatal(err)
 	}

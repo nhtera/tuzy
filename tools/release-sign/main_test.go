@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestKeygenSignVerifyRoundTrip(t *testing.T) {
 	buf := make([]byte, 128)
 	n, _ := r.Read(buf)
 	pub := strings.TrimSpace(string(buf[:n]))
-	if st, _ := os.Stat(key); st.Mode().Perm() != 0o600 {
+	if st, _ := os.Stat(key); runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 { // no Unix modes on Windows
 		t.Fatalf("key mode %v", st.Mode().Perm())
 	}
 	if err := run([]string{"keygen", key}); err == nil {
