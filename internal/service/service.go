@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"time"
 	"unicode/utf16"
 )
 
@@ -319,7 +320,9 @@ func (m Manager) Install() error {
 			return m.sc("enable", "tuzy.service")
 		}
 		if m.loaded() { // re-install: drop the old definition; `service start` loads the new one
-			_, _ = m.Run("launchctl", "bootout", m.target())
+			if _, err := m.Run("launchctl", "bootout", m.target()); err == nil {
+				return m.waitUnloaded()
+			}
 		}
 		return nil
 	}
@@ -374,10 +377,28 @@ func (m Manager) Stop() error {
 		if !m.loaded() {
 			return nil
 		}
-		_, err := m.Run("launchctl", "bootout", m.target()) // KeepAlive would restart a plain kill
-		return err
+		if _, err := m.Run("launchctl", "bootout", m.target()); err != nil { // KeepAlive would restart a plain kill
+			return err
+		}
+		return m.waitUnloaded()
 	}
 	return m.sc("stop", "tuzy.service")
+}
+
+// Unload polling: bootout returns at once while the job is still draining (SIGTERM, then launchd's
+// default 20s ExitTimeOut before SIGKILL); a bootstrap before it's gone fails with "5: Input/output error".
+var (
+	unloadPoll    = 100 * time.Millisecond
+	unloadTimeout = 30 * time.Second
+)
+
+func (m Manager) waitUnloaded() error {
+	for deadline := time.Now().Add(unloadTimeout); m.loaded(); time.Sleep(unloadPoll) {
+		if time.Now().After(deadline) {
+			return fmt.Errorf("%s is still shutting down after %s; retry in a moment", Label, unloadTimeout)
+		}
+	}
+	return nil
 }
 
 // Restart restarts the service.

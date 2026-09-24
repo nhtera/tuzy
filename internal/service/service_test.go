@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func spec(t *testing.T, goos string) Spec {
@@ -126,11 +127,15 @@ type fakeRun struct {
 	calls []string
 	fail  map[string]bool
 	out   map[string]string
+	hook  func(f *fakeRun, c string) // runs before each call is answered
 }
 
 func (f *fakeRun) run(name string, args ...string) (string, error) {
 	c := name + " " + strings.Join(args, " ")
 	f.calls = append(f.calls, c)
+	if f.hook != nil {
+		f.hook(f, c)
+	}
 	for k := range f.fail {
 		if strings.HasPrefix(c, k) {
 			return "", errors.New("exit 1")
@@ -189,15 +194,48 @@ func TestDarwinLifecycleAndStatus(t *testing.T) {
 	if s := m.Status(); s != "running (pid 4242)" {
 		t.Fatal(s)
 	}
-	_ = m.Restart() // bootout + bootstrap so a re-installed plist takes effect
-	if got := strings.Join(f.calls[len(f.calls)-4:], "|"); !strings.HasPrefix(got, "launchctl print gui/501/dev.tuzy.agent|launchctl bootout gui/501/dev.tuzy.agent|launchctl print") {
-		t.Fatal(got) // stop (bootout) happens before the start (the fake reports "loaded" throughout)
+	// Restart = bootout + bootstrap so a re-installed plist takes effect. bootout returns while the
+	// job is still draining: the bootstrap must wait until launchd has unloaded it.
+	unloadPoll = time.Millisecond
+	t.Cleanup(func() { unloadPoll = 100 * time.Millisecond })
+	polls := -1 // after bootout, `print` keeps reporting "loaded" for 2 polls
+	f.hook = func(f *fakeRun, c string) {
+		switch {
+		case strings.HasPrefix(c, "launchctl bootout"):
+			polls = 2
+		case strings.HasPrefix(c, "launchctl print") && polls >= 0:
+			if polls == 0 {
+				f.fail = map[string]bool{"launchctl print": true}
+			}
+			polls--
+		}
 	}
+	f.calls = nil
+	if err := m.Restart(); err != nil {
+		t.Fatal(err)
+	}
+	target := "gui/501/dev.tuzy.agent"
+	want := []string{"launchctl print " + target, "launchctl bootout " + target,
+		"launchctl print " + target, "launchctl print " + target, "launchctl print " + target, // wait for unload
+		"launchctl print " + target, "launchctl bootstrap gui/501 " + m.Spec.UnitPath()}
+	if strings.Join(f.calls, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("calls:\n%s", strings.Join(f.calls, "\n"))
+	}
+	f.hook, f.fail = nil, nil
 	if err := m.Uninstall(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(m.Spec.UnitPath()); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("plist not removed")
+	}
+}
+
+func TestDarwinStopTimesOutIfNeverUnloaded(t *testing.T) {
+	unloadPoll, unloadTimeout = time.Millisecond, 20*time.Millisecond
+	t.Cleanup(func() { unloadPoll, unloadTimeout = 100*time.Millisecond, 30*time.Second })
+	m := Manager{Spec: spec(t, "darwin"), Run: (&fakeRun{}).run} // `print` always succeeds: stuck
+	if err := m.Stop(); err == nil || !strings.Contains(err.Error(), "still shutting down") {
+		t.Fatal(err)
 	}
 }
 

@@ -30,6 +30,11 @@ Logs are JSON; ` + "`tuzy service status`" + ` prints where.`,
 	cmd.PersistentFlags().StringVarP(&file, "file", "f", config.ProjectFile, "project file with the tunnels to run")
 
 	manager := func() (service.Manager, error) {
+		// A LaunchAgent lives in the login user's gui/<uid> domain; under sudo that would be gui/0,
+		// which doesn't exist ("125: Domain does not support specified action").
+		if runtime.GOOS == "darwin" && os.Geteuid() == 0 {
+			return service.Manager{}, fmt.Errorf("tuzy service is a per-user LaunchAgent: run it without sudo")
+		}
 		exe, err := os.Executable()
 		if err != nil {
 			return service.Manager{}, err
