@@ -1,3 +1,4 @@
+import { AUTO_TRUST_DAYS } from "../lib/trust";
 import { page } from "./site-layout";
 
 export function landingPage(): Response {
@@ -27,6 +28,6 @@ open http://127.0.0.1:4040   # inspect &amp; replay requests</code></pre>
 <li>Several tunnels from one <code>tuzy.toml</code> (<code>tuzy start --all</code>)</li>
 </ul>
 <h2>Fair use</h2>
-<p>tuzy is free. Tunnels are for your own development traffic; see the <a href="/aup">acceptable use policy</a>. Browsers see a one-time warning page on tunnels of new accounts; webhooks and API calls never do.</p>`,
+<p>tuzy is free. Tunnels are for your own development traffic; see the <a href="/aup">acceptable use policy</a>. Browsers see a warning page on tunnels of accounts younger than ${AUTO_TRUST_DAYS} days (visitors skip it for 7 days after clicking through); webhooks and API calls never do. See the <a href="/aup#browser-warning">browser warning policy</a>.</p>`,
   );
 }

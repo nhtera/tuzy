@@ -2,6 +2,7 @@
  * Terms, privacy and acceptable-use pages. TEMPLATES: the operator must review them (not legal
  * advice) before public launch — a phase 9 launch-checklist blocker.
  */
+import { AUTO_TRUST_DAYS } from "../lib/trust";
 import { page } from "./site-layout";
 
 const UPDATED = "2026-09-24";
@@ -20,6 +21,14 @@ export function aupPage(): Response {
 <li>attack, scan or overload other systems, or evade tuzy's limits (for example by creating many accounts).</li>
 </ul>
 <p>We may suspend names or accounts that break these rules, sometimes automatically after reports from several networks, and we cooperate with valid legal requests. Report abuse at <a href="/abuse">tuzy.dev/abuse</a> or abuse@tuzy.dev.</p>
+<h2 id="browser-warning">Browser warning page</h2>
+<p>To protect visitors from phishing, browsers opening a tunnel of a <b>new account</b> first see a page saying the site is served through tuzy, with <i>Visit site</i> and <i>Report abuse</i>.</p>
+<ul>
+<li><b>Who sees it:</b> only people opening a page in a browser. Webhooks, <code>curl</code>, API and <code>fetch</code> calls never see it.</li>
+<li><b>When it stops:</b> automatically once the tunnel owner's account is <b>${AUTO_TRUST_DAYS} days old</b>. A visitor who clicks <i>Visit site</i> doesn't see it again on that address for 7 days.</li>
+<li><b>When it comes back:</b> if an abuse report against the account is upheld, the page is shown again for that account's tunnels, whatever its age.</li>
+<li><b>Automation:</b> tools such as Playwright or screenshot services can send the request header <code>tuzy-skip-warning: 1</code>.</li>
+</ul>
 <h2>Limits</h2>
 <p>Each account has up to 10 names, a request-rate limit per tunnel, and a monthly allowance of long-running streams (50 hours of streams past their first 5 minutes). Limits may change to keep the service free and healthy.</p>`,
   );

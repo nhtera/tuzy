@@ -48,6 +48,8 @@ describe("interstitial", () => {
     expect(html).toContain("You are about to visit a tunnel");
     expect(html).toContain('href="/__tuzy/continue?to=%2Fdash%3Fx%3D1"');
     expect(html).toContain("tuzy.dev/abuse?name=inter-new");
+    expect(html).toContain("accounts younger than 7 days"); // the policy is stated on the page itself
+    expect(html).toContain("/aup#browser-warning");
 
     // A webhook (POST JSON) and an API fetch reach the app, marked noindex.
     const hook = visit("inter-new", "/webhook", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
@@ -108,10 +110,18 @@ describe("interstitial", () => {
     other.close();
   });
 
-  it("is skipped for 30-day-old accounts and comes back live when an admin untrusts them", async () => {
+  it("is still shown for a 6-day-old account", async () => {
+    const u = await login(email());
+    await env.DB.prepare("UPDATE users SET created_at = ?2 WHERE id = ?1").bind(u.userId, now() - 6 * 86400).run();
+    const agent = await FakeAgent.connect("inter-six", { token: u.token });
+    expect(await (await visit("inter-six", "/", { headers: DOC })).text()).toContain("You are about to visit a tunnel");
+    agent.close();
+  });
+
+  it("is skipped for accounts 7+ days old and comes back live when an admin untrusts them", async () => {
     const adminToken = await admin();
     const u = await login(email());
-    await env.DB.prepare("UPDATE users SET created_at = ?2 WHERE id = ?1").bind(u.userId, now() - 31 * 86400).run();
+    await env.DB.prepare("UPDATE users SET created_at = ?2 WHERE id = ?1").bind(u.userId, now() - 7 * 86400 - 60).run();
     const agent = await FakeAgent.connect("inter-old", { token: u.token });
     const r = visit("inter-old", "/", { headers: DOC });
     await serveOnce(agent, "/");

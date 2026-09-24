@@ -8,17 +8,16 @@
 Free tunnels for webhooks, demos and mobile testing. Your subdomain is yours (up to 10 per account),
 so a webhook URL you register once keeps working across restarts, laptops and CI.
 
-> **Status:** pre-release. The edge runs at [tuzy.dev](https://tuzy.dev) (`edge-v1.0.0`); CLI release
-> candidates are on [GitHub Releases](https://github.com/nhtera/tuzy/releases). `v1.0.0` follows the
-> pre-launch load test.
+> **Status:** pre-release (`v0.9.x`) on [GitHub Releases](https://github.com/nhtera/tuzy/releases), with
+> the edge live at [tuzy.dev](https://tuzy.dev). `v1.0.0` follows the pre-launch load test.
 
 ## Install
 
 | Platform | Command |
 |---|---|
 | macOS / Linux | `curl -fsSL https://tuzy.dev/install.sh \| sh` |
-| macOS (Homebrew) | `brew install nhtera/tap/tuzy` *(from v1.0.0)* |
-| Windows (Scoop) | `scoop bucket add nhtera https://github.com/nhtera/scoop-bucket` then `scoop install tuzy` *(from v1.0.0)* |
+| macOS (Homebrew) | `brew install nhtera/tap/tuzy` |
+| Windows (Scoop) | `scoop bucket add nhtera https://github.com/nhtera/scoop-bucket` then `scoop install tuzy` |
 | Go | `go install github.com/nhtera/tuzy/cmd/tuzy@latest` |
 
 The installer checks the release's ed25519 signature (when `openssl` can) and sha256 before installing to
@@ -66,7 +65,7 @@ shell completion (`tuzy completion <shell>`), and the `tuzy-skip-warning: 1` req
   caches "connected" markers.
 - **CLI** (repo-root Go module `github.com/nhtera/tuzy`, entry `cmd/tuzy`): the tunnel agent, name and
   token management, the local inspector, and the file server / HTTPS upstreams.
-- **Safety:** email-OTP accounts, a browser warning page on new accounts' tunnels, abuse reports with
+- **Safety:** email-OTP accounts, a browser warning page on tunnels of accounts younger than 7 days, abuse reports with
   auto-quarantine, admin tooling, and per-tunnel and per-account limits.
 
 ## Layout

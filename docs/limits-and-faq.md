@@ -28,8 +28,9 @@ page loads. The public host is always in `X-Forwarded-Host`.
   routing); then allow `.tuzy.dev` in the dev server's config.
 
 **Browsers see a "You are about to visit a tunnel" page.**
-New accounts' tunnels show it once per browser every 7 days, as phishing protection.
-Accounts older than 30 days with no upheld abuse reports don't show it. Webhooks, `curl` and
+Tunnels of accounts younger than 7 days show it (phishing protection), once per browser and
+address every 7 days. It stops by itself when the account turns 7 days old, unless an abuse report
+against the account was upheld. Policy: https://tuzy.dev/aup#browser-warning. Webhooks, `curl` and
 `fetch` never see it. Automation (Playwright, screenshot tools) can send the request header
 `tuzy-skip-warning: 1`.
 
