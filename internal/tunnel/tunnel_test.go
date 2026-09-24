@@ -383,6 +383,8 @@ func TestStatusTable(t *testing.T) {
 		{401, `{"error":{"code":"token_expired"}}`, "session expired: run `tuzy login`"},
 		{403, `{"error":{"code":"forbidden","message":"not your name"}}`, "not your name"},
 		{404, `{"error":{"code":"name_not_reserved"}}`, "you don't own `shop`: run `tuzy names add shop`"},
+		{409, `{"error":{"code":"name_in_use"}}`, "`shop` is already live in another tuzy process"},
+		{409, `{"error":{"code":"name_in_use"}}`, "--name <other>"},
 		{409, `{"error":{"code":"name_in_use"}}`, "rerun with --force"},
 		{410, `{"error":{"code":"name_released","new_name":"store"}}`, "was renamed to `store`"}, // hint loop: gives up after 3 hops
 		{410, `{"error":{"code":"name_released"}}`, "`shop` was removed"},

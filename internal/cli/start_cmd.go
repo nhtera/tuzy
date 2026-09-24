@@ -93,7 +93,7 @@ func newStartCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&file, "file", "f", config.ProjectFile, "project file")
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "don't print the access log")
 	logs.register(cmd)
-	cmd.Flags().BoolVar(&force, "force", false, "take over names that are live on another device")
+	cmd.Flags().BoolVar(&force, "force", false, "take over names that are live in another tuzy process or on another device")
 	cmd.Flags().BoolVar(&inspect.disabled, "no-inspect", false, "don't start the local request inspector")
 	cmd.Flags().StringVar(&inspect.addr, "inspect-addr", "", "inspector address (default 127.0.0.1:4040)")
 	return cmd

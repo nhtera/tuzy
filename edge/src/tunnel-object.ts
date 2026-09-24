@@ -345,7 +345,7 @@ export class TunnelObject extends DurableObject<Env> {
         this.sendGoaway(ws, "replaced", { message: "another agent took over this tunnel" }); // rule 4
         this.dropAgent(ws, 1000, "replaced");
       } else {
-        return apiError(409, "name_in_use", "this name is live on another device; rerun with --force"); // rule 5
+        return apiError(409, "name_in_use", "this name is live in another tuzy process; use a different name, or rerun with --force to take it over"); // rule 5
       }
     }
 

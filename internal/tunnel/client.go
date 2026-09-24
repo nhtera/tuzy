@@ -387,7 +387,10 @@ func (c *Client) statusError(resp *http.Response) error {
 		}
 		return exit(msg)
 	case http.StatusConflict:
-		return exit("name is live on another device; rerun with --force")
+		// Most often a second terminal on the same machine reusing the default name, so offer both fixes.
+		return exit(fmt.Sprintf("`%[1]s` is already live in another tuzy process (another terminal or device)\n"+
+			"  • to run another tunnel alongside it, use a different name: --name <other> (`tuzy names ls` lists yours)\n"+
+			"  • to move `%[1]s` here, rerun with --force (the other process disconnects)", c.Name()))
 	case http.StatusGone:
 		if body.NewName != "" {
 			return &renamedError{

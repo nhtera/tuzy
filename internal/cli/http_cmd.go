@@ -75,7 +75,7 @@ local app) or a file:// directory to serve (read-only, with directory listing; d
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "tunnel name (default: your default name)")
-	cmd.Flags().BoolVar(&force, "force", false, "take over the name even if it is live on another device")
+	cmd.Flags().BoolVar(&force, "force", false, "take over the name even if it is live in another tuzy process or on another device")
 	cmd.Flags().StringVar(&hostHeader, "host-header", "auto", `Host header sent to the local app: "auto" (tunnel host; switches to the local host if the dev server rejects it, e.g. Vite allowedHosts), "preserve" (always the tunnel host) or "rewrite" (always the local host)`)
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "don't print the access log")
 	logs.register(cmd)
