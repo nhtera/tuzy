@@ -199,7 +199,10 @@ func (hh *harness) startEdge(wranglerBin string) error {
 	}
 	hh.edgeLog = logFile
 
-	cmd := exec.Command("node", wranglerBin, "dev", "-c", "wrangler.dev.gen.jsonc", "--port", strconv.Itoa(hh.edgePort))
+	// The interstitial secret normally comes from the gitignored edge/.dev.vars; CI has none, and a
+	// missing secret makes /__tuzy/continue fail closed. Pass a fixed test value explicitly.
+	cmd := exec.Command("node", wranglerBin, "dev", "-c", "wrangler.dev.gen.jsonc", "--port", strconv.Itoa(hh.edgePort),
+		"--var", "INTERSTITIAL_SECRET:e2e-interstitial-secret")
 	cmd.Dir = hh.edgeDir
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
