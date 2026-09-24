@@ -161,6 +161,7 @@ class AgentConn implements StreamHost {
   /** Response bytes received and not yet granted back (connection receive window, §4.1). */
   private readonly recvWindow = new ReceiveWindow(CONN_WINDOW);
   private connUngranted = 0;
+  private liveness?: ReturnType<typeof setInterval>;
 
   constructor(
     readonly ws: WebSocket,
@@ -207,14 +208,27 @@ class AgentConn implements StreamHost {
     return this.hooks.acceptVisitorSocket(this.epoch, id, headers);
   }
 
-  agentAlive(): boolean {
-    return this.hooks.agentAlive(this.epoch);
+  /**
+   * Registers a stream. While any stream is open, one timer per connection checks that the agent
+   * is alive (socket open, heartbeat within DEAD_SOCKET_SECONDS) and fails every stream (502) when
+   * it is not. After a code update the runtime can terminate the agent socket without a close
+   * event; streams waiting out HEAD_TIMEOUT on it kept the old object instance alive, and the
+   * agent's frames on its new socket were lost meanwhile ("no HELLO" until traffic stopped).
+   */
+  track(id: number, stream: HttpStream): void {
+    this.streams.set(id, stream);
+    this.liveness ??= setInterval(() => {
+      if (this.hooks.agentAlive(this.epoch)) return;
+      for (const s of [...this.streams.values()]) s.agentGone();
+    }, Math.max(250, Math.min(5_000, this.policy.deadSocketMs / 4)));
   }
 
   onDone(id: number): void {
     this.streams.delete(id);
     this.hooks.releaseLong(this.epoch, id);
     if (this.streams.size === 0) {
+      if (this.liveness !== undefined) clearInterval(this.liveness);
+      this.liveness = undefined;
       this.flushConn();
       this.hooks.persistIdle(this);
     }
@@ -433,7 +447,7 @@ export class TunnelObject extends DurableObject<Env> {
   private forwardVisitor(request: Request, url: URL): Response | Promise<Response> {
     if (this.suspended) return statusPage("suspended");
     const current = this.currentAgent();
-    // A silently dead agent (see StreamHost.agentAlive) is offline now, not after the head timeout.
+    // A silently dead agent (see AgentConn.track) is offline now, not after the head timeout.
     if (!current || !current.att.hello || this.isDead(current.ws, current.att, Date.now())) return statusPage("offline");
     if (current.att.draining) return statusPage("draining");
     const { ws, att } = current;
@@ -466,7 +480,7 @@ export class TunnelObject extends DurableObject<Env> {
     if (head.byteLength - 5 > MAX_JSON_PAYLOAD) return statusPage("header_too_large");
 
     const stream = new HttpStream(id, conn, kind, request.method);
-    conn.streams.set(id, stream);
+    conn.track(id, stream);
     return stream.start(head, kind === "http" ? request.body : null, request.signal);
   }
 
