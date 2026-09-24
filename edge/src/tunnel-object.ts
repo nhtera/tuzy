@@ -147,6 +147,7 @@ function closeSocket(ws: WebSocket, code: number, reason: string): void {
 /** Callbacks an AgentConn needs from its TunnelObject (kept off the public RPC surface). */
 interface ConnHooks {
   acceptVisitorSocket(epoch: number, id: number, headers: Headers): Response;
+  agentAlive(epoch: number): boolean;
   admitLong(epoch: number, id: number): true | "stream_timeout" | "long_stream_budget";
   releaseLong(epoch: number, id: number): void;
   /** The connection became idle: persist state that must survive hibernation. */
@@ -206,6 +207,10 @@ class AgentConn implements StreamHost {
     return this.hooks.acceptVisitorSocket(this.epoch, id, headers);
   }
 
+  agentAlive(): boolean {
+    return this.hooks.agentAlive(this.epoch);
+  }
+
   onDone(id: number): void {
     this.streams.delete(id);
     this.hooks.releaseLong(this.epoch, id);
@@ -245,6 +250,11 @@ export class TunnelObject extends DurableObject<Env> {
   private markerWritten = false;
   private readonly hooks: ConnHooks = {
     acceptVisitorSocket: (epoch, id, headers) => this.acceptVisitorSocket(epoch, id, headers),
+    agentAlive: (epoch) => {
+      const ws = this.agentSocket(epoch);
+      const att = ws?.deserializeAttachment() as AgentAttachment | null | undefined;
+      return !!ws && !!att && !this.isDead(ws, att, Date.now());
+    },
     admitLong: (epoch, id) => this.admitLong(epoch, id),
     releaseLong: (epoch, id) => this.releaseLong(epoch, id),
     persistIdle: (conn) => {
@@ -423,7 +433,8 @@ export class TunnelObject extends DurableObject<Env> {
   private forwardVisitor(request: Request, url: URL): Response | Promise<Response> {
     if (this.suspended) return statusPage("suspended");
     const current = this.currentAgent();
-    if (!current || !current.att.hello) return statusPage("offline");
+    // A silently dead agent (see StreamHost.agentAlive) is offline now, not after the head timeout.
+    if (!current || !current.att.hello || this.isDead(current.ws, current.att, Date.now())) return statusPage("offline");
     if (current.att.draining) return statusPage("draining");
     const { ws, att } = current;
     const conn = this.conn(ws, att.epoch);

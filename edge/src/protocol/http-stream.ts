@@ -56,6 +56,12 @@ export interface StreamHost {
   acceptVisitorSocket(id: number, headers: Headers): Response;
   /** Called exactly once when the stream is finished or reset. */
   onDone(id: number): void;
+  /**
+   * False once the agent socket is gone or silent for DEAD_SOCKET_SECONDS. After a code update the
+   * runtime can terminate the socket without a close event; a stream must not wait out its head
+   * timeout on it (that keeps the old object instance alive and new agent sockets stall).
+   */
+  agentAlive(): boolean;
 }
 
 const NULL_BODY_STATUS = new Set([101, 204, 205, 304]);
@@ -79,6 +85,7 @@ export class HttpStream {
   private resolveHead!: (r: Response) => void;
   private readonly head = new Promise<Response>((r) => (this.resolveHead = r));
   private readonly timers: ReturnType<typeof setTimeout>[] = [];
+  private liveness?: ReturnType<typeof setInterval>;
 
   constructor(
     readonly id: number,
@@ -109,6 +116,10 @@ export class HttpStream {
         if (admitted !== true) this.reset(admitted);
       }, p.longStreamMs),
     );
+    // Fail fast (502) when the agent dies silently instead of waiting for the head/credit timeouts.
+    this.liveness = setInterval(() => {
+      if (!this.host.agentAlive()) this.reset("cancelled", false, "bad_gateway");
+    }, Math.max(250, Math.min(5_000, p.deadSocketMs / 4)));
     if (signal?.aborted) {
       this.reset("cancelled");
       return this.head;
@@ -311,6 +322,7 @@ export class HttpStream {
     if (this.done) return;
     this.done = true;
     for (const t of this.timers) clearTimeout(t);
+    if (this.liveness !== undefined) clearInterval(this.liveness);
     this.sendCredit.wake();
     this.host.onDone(this.id);
   }

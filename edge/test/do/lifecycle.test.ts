@@ -50,12 +50,27 @@ describe("replace rules (PROTOCOL §3.2)", () => {
   });
 
   it("replaces a dead socket (no pong for DEAD_SOCKET_SECONDS)", async () => {
-    const a = await FakeAgent.connect("dead1"); // never pings
+    const a = await FakeAgent.connect("dead1", { heartbeat: false }); // never pings
     await sleep(2_200);
     const b = await FakeAgent.connect("dead1");
     await a.waitClosed();
     await roundTrip(b, "dead1");
     b.close();
+  });
+
+  it("fails in-flight streams fast (502) when the agent goes silent, and answers offline", async () => {
+    // After a code update the runtime can drop the agent socket without a close event; streams
+    // must not wait out HEAD_TIMEOUT (it keeps the old object instance alive).
+    const a = await FakeAgent.connect("silent1");
+    const resP = visit("silent1", "/slow");
+    await a.request("/slow"); // REQ_HEAD reached the agent; it never answers
+    a.stopHeartbeat();
+    const started = Date.now();
+    const res = await resP;
+    expect(res.status).toBe(502);
+    expect(Date.now() - started).toBeLessThan(2_900); // DEAD_SOCKET 2 s < HEAD_TIMEOUT 3 s (504)
+    expect((await visit("silent1", "/after")).status).toBe(502); // offline page, no new stream
+    a.close();
   });
 
   it("a stale-epoch close does not touch the new agent's streams", async () => {

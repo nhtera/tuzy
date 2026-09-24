@@ -50,6 +50,7 @@ export class FakeAgent {
   private waiters: FrameWaiter[] = [];
   private creditWakers: (() => void)[] = [];
   private closeWaiters: (() => void)[] = [];
+  private heartbeat?: ReturnType<typeof setInterval>;
   onRequest?: (req: ReqState) => void;
 
   private constructor(
@@ -66,6 +67,7 @@ export class FakeAgent {
       this.waiters = this.waiters.filter((w) => (w.pred(f) ? (w.resolve(f), false) : true));
     });
     ws.addEventListener("close", (e) => {
+      this.stopHeartbeat();
       this.closed = { code: e.code, reason: e.reason };
       this.closeWaiters.forEach((f) => f());
       this.wakeCredit();
@@ -90,12 +92,24 @@ export class FakeAgent {
     return { agent: new FakeAgent(res.webSocket, instance), res };
   }
 
-  /** Opens and completes HELLO → READY. */
-  static async connect(name: string, opts: { instance?: string; force?: boolean; token?: string; reserve?: boolean } = {}): Promise<FakeAgent> {
+  /**
+   * Opens and completes HELLO → READY, then pings like the real agent (the edge treats a silent
+   * agent as dead after DEAD_SOCKET_SECONDS). `heartbeat: false` keeps it silent.
+   */
+  static async connect(
+    name: string,
+    opts: { instance?: string; force?: boolean; token?: string; reserve?: boolean; heartbeat?: boolean } = {},
+  ): Promise<FakeAgent> {
     const { agent, res } = await FakeAgent.open(name, opts);
     if (!agent) throw new Error(`connect failed: ${res.status} ${await res.text()}`);
     await agent.hello();
+    if (opts.heartbeat !== false) agent.heartbeat = setInterval(() => agent.ping(), 300);
     return agent;
+  }
+
+  /** Stops the automatic pings (the agent goes silent while its socket stays open). */
+  stopHeartbeat(): void {
+    if (this.heartbeat !== undefined) clearInterval(this.heartbeat);
   }
 
   async hello(): Promise<Frame> {
@@ -184,7 +198,11 @@ export class FakeAgent {
   }
 
   ping(): void {
-    this.ws.send("tuzy-ping");
+    try {
+      this.ws.send("tuzy-ping");
+    } catch {
+      // closed
+    }
   }
 
   close(code = 1000): void {
