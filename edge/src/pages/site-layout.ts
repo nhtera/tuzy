@@ -46,11 +46,18 @@ form+p{margin-top:1.6rem}
 #result[data-state=ok]{border-color:var(--accent-line);background:var(--accent-soft)}
 #result[data-state=error]{border-color:var(--warn-line);background:var(--warn-soft)}
 .hp{position:absolute;left:-9999px}
-.foot{border-top:1px solid var(--border);padding:2.2rem 0 2.8rem;font-size:.9rem;color:var(--faint)}
-.foot .wrap{display:flex;flex-wrap:wrap;gap:1.2rem 2.5rem;justify-content:space-between;align-items:flex-start}
-.foot p{margin:.35rem 0 0;max-width:30ch}
-.foot nav{display:flex;flex-wrap:wrap;gap:.6rem 1.4rem}
-.foot nav a{color:var(--muted);text-decoration:none}.foot nav a:hover{color:var(--text)}`;
+.foot{border-top:1px solid var(--border);padding:clamp(2.2rem,5vw,3rem) 0 2rem;font-size:.9rem}
+.foot .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:2rem clamp(2rem,6vw,5rem)}
+.fbrand .logo{margin-right:0}
+.fbrand p{margin:.7rem 0 0;color:var(--faint)}
+.fcols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.5rem}
+.fcols div{display:grid;gap:.6rem;align-content:start}
+.fh{margin:0 0 .15rem;font-size:.8rem;font-weight:600;color:var(--text)}
+.fcols a{width:fit-content;color:var(--muted);text-decoration:none;overflow-wrap:anywhere}
+.fcols a:hover{color:var(--text)}
+.fbase{grid-column:1 / -1;border-top:1px solid var(--border);padding-top:1.2rem;color:var(--faint);font-size:.82rem}
+@media(max-width:720px){.foot .wrap{grid-template-columns:minmax(0,1fr);gap:1.6rem}.fbrand{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem .9rem}.fbrand p{margin:0}}
+@media(max-width:480px){.foot{padding:2rem 0 1.5rem;font-size:.85rem}.fcols{grid-template-columns:repeat(3,auto);justify-content:space-between;gap:.9rem}.fcols div{gap:.45rem}.fbase{padding-top:1rem}}`;
 
 const NAV: Array<[href: string, label: string, wide?: boolean]> = [
   [DOCS, "Docs"],
@@ -79,7 +86,7 @@ export function page(title: string, body: string, opts: PageOpts = {}): Response
   const scripts = (opts.scripts ?? []).map((s) => `<script src="${s}" defer></script>`).join("");
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><meta name="description" content="${escapeHtml(desc)}"><meta property="og:title" content="${escapeHtml(title)}"><meta property="og:description" content="${escapeHtml(desc)}"><meta name="theme-color" content="#fbfbfc" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)">${FAVICON}<style>${BASE_CSS}
 ${LAYOUT_CSS}
-${opts.css ?? ""}</style>${scripts}</head><body><header class="top"><div class="wrap"><a class="logo" href="/">tuzy</a><nav aria-label="Main">${nav}</nav></div></header>${main}<footer class="foot"><div class="wrap"><div><a class="logo" href="/">tuzy</a><p>Stable localhost tunnels, free and open source.</p></div><nav aria-label="Footer"><a href="${DOCS}">Docs</a><a href="${REPO}">Source</a><a href="/aup">Acceptable use</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/abuse">Report abuse</a><a href="/.well-known/security.txt">Security</a><a href="mailto:abuse@tuzy.dev">abuse@tuzy.dev</a></nav></div></footer></body></html>`;
+${opts.css ?? ""}</style>${scripts}</head><body><header class="top"><div class="wrap"><a class="logo" href="/">tuzy</a><nav aria-label="Main">${nav}</nav></div></header>${main}<footer class="foot"><div class="wrap"><div class="fbrand"><a class="logo" href="/">tuzy</a><p>Stable localhost tunnels.</p></div><nav class="fcols" aria-label="Footer"><div><p class="fh">Product</p><a href="${DOCS}">Docs</a><a href="${REPO}">GitHub</a><a href="${REPO}/releases">Releases</a></div><div><p class="fh">Policies</p><a href="/aup">Acceptable use</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></div><div><p class="fh">Contact</p><a href="/abuse">Report abuse</a><a href="/.well-known/security.txt">Security</a><a href="mailto:abuse@tuzy.dev">abuse@tuzy.dev</a></div></nav><p class="fbase">Free and open source under Apache-2.0.</p></div></footer></body></html>`;
   return new Response(html, {
     status: opts.status ?? 200,
     headers: {

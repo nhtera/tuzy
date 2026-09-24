@@ -61,8 +61,8 @@ section .intro{color:var(--muted);max-width:60ch;margin-bottom:2rem}
 @media(prefers-reduced-motion:no-preference){.hero .wrap>*{animation:rise .7s cubic-bezier(.16,1,.3,1) both}.hero .wrap>:nth-child(2){animation-delay:.08s}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}}
 @media(max-width:960px){.bento{grid-template-columns:repeat(2,minmax(0,1fr))}.t-names,.t-file{grid-column:1 / -1}}
-@media(max-width:860px){.hero .wrap,.setup,.fair .wrap{grid-template-columns:minmax(0,1fr)}.hero .sub{max-width:44ch}}
-@media(max-width:640px){.bento{grid-template-columns:minmax(0,1fr)}.tile{min-height:0}.t-file .pair,.t-names .pair{grid-template-columns:minmax(0,1fr)}.term pre{font-size:.78rem}.cta .btn{flex:1}}`;
+@media(max-width:860px){.hero .wrap,.setup,.fair .wrap{grid-template-columns:minmax(0,1fr)}.fair .wrap{gap:.4rem}.hero .sub{max-width:44ch}}
+@media(max-width:640px){.bento{grid-template-columns:minmax(0,1fr)}.tile{min-height:0}.t-file .pair,.t-names .pair{grid-template-columns:minmax(0,1fr)}.term pre{font-size:.78rem}.cta .btn,.fair .links .btn{flex:1 1 auto}}`;
 
 export function landingPage(): Response {
   return page(
