@@ -103,3 +103,26 @@ func TestServiceInstallDryRunRendersTheUnit(t *testing.T) {
 		}
 	}
 }
+
+func TestNamesSummarizesHeldNamesUnlessAsked(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"names":[{"name":"web","url":"https://web.tuzy.dev","default":true,"status":"active","created_at":1800000000,"state":"online"}],"used":1,"limit":10,` +
+			`"held":[{"name":"old-a","until":1830000000,"renamed_to":null},{"name":"old-b","until":1830000000,"renamed_to":"web"}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("TUZY_TOKEN", "tzy_x")
+	t.Setenv("TUZY_SERVER", srv.URL)
+
+	for _, args := range [][]string{{"names"}, {"names", "ls"}} {
+		out, err := run(t, "", args...)
+		if err != nil || !strings.Contains(out, "web") || !strings.Contains(out, "2 old name(s) on hold for you to reclaim (`tuzy names ls --held`)") || strings.Contains(out, "old-a") {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+	}
+	for _, args := range [][]string{{"names", "--held"}, {"names", "ls", "--held"}} {
+		out, err := run(t, "", args...)
+		if err != nil || !strings.Contains(out, "old-a (released) — reclaim with `tuzy names add old-a`") || !strings.Contains(out, "old-b (renamed to web)") {
+			t.Fatalf("%v: %v\n%s", args, err, out)
+		}
+	}
+}

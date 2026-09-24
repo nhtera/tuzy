@@ -67,11 +67,11 @@ func newDiagnoseCmd() *cobra.Command {
 func mark(s diagnose.Status) string {
 	switch s {
 	case diagnose.OK:
-		return "✓"
+		return ui.Check
 	case diagnose.Warn:
 		return "!"
 	case diagnose.Fail:
-		return "✗"
+		return ui.Cross
 	}
 	return "-"
 }

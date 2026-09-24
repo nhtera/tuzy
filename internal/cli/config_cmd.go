@@ -16,6 +16,7 @@ import (
 	"github.com/nhtera/tuzy/internal/api"
 	"github.com/nhtera/tuzy/internal/config"
 	"github.com/nhtera/tuzy/internal/logging"
+	"github.com/nhtera/tuzy/internal/ui"
 	"github.com/nhtera/tuzy/internal/upstream"
 )
 
@@ -90,7 +91,7 @@ func newConfigCheckCmd() *cobra.Command {
 				if err := (logging.Options{Dest: u.Log, Format: u.LogFormat, Level: u.LogLevel}).Validate(); err != nil {
 					p.add("%s: %v", userPath, err)
 				}
-				fmt.Fprintf(out, "✓ user config %s%s\n", userPath, missing(userPath))
+				fmt.Fprintf(out, "%s user config %s%s\n", ui.Check, userPath, missing(userPath))
 			}
 			if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) && !cmd.Flags().Changed("file") {
 				fmt.Fprintf(out, "- no %s here\n", config.ProjectFile)
@@ -119,12 +120,12 @@ func newConfigCheckCmd() *cobra.Command {
 						fmt.Fprintf(out, "! tunnels.%s: upstream_insecure skips TLS verification of %s\n", name, t.Addr)
 					}
 				}
-				fmt.Fprintf(out, "✓ %s: %d tunnel(s) %s\n", file, len(proj.Tunnels), strings.Join(proj.Names(), ", "))
+				fmt.Fprintf(out, "%s %s: %d tunnel(s) %s\n", ui.Check, file, len(proj.Tunnels), strings.Join(proj.Names(), ", "))
 			}
 			if len(p.errs) > 0 {
 				sort.Strings(p.errs)
 				for _, e := range p.errs {
-					fmt.Fprintf(out, "✗ %s\n", e)
+					fmt.Fprintf(out, "%s %s\n", ui.Cross, e)
 				}
 				return fmt.Errorf("%d problem(s) found", len(p.errs))
 			}
@@ -242,7 +243,7 @@ in your shell history and is visible to other users in ` + "`ps`" + `.`,
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "✓ stored a %s-scope token for %s (%s)\n", me.Token.Scope, me.User.Email, env.displayServer())
+			fmt.Fprintf(cmd.OutOrStdout(), "%s stored a %s-scope token for %s (%s)\n", ui.Check, me.Token.Scope, me.User.Email, env.displayServer())
 			return nil
 		},
 	}

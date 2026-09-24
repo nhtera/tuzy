@@ -214,6 +214,7 @@ Available Commands:
   rm          Release a name (held for you for 12 months)
 
 Flags:
+      --held   also list the names you released or renamed (on hold for you to reclaim)
       --json   print JSON
       --live   show whether each tunnel is online (default true)
 
@@ -256,6 +257,7 @@ Usage:
   tuzy names ls [flags]
 
 Flags:
+      --held   also list the names you released or renamed (on hold for you to reclaim)
       --json   print JSON
       --live   show whether each tunnel is online (default true)
 

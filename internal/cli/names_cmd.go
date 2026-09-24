@@ -39,7 +39,7 @@ func lastSeen(ts *int64) string {
 }
 
 func newNamesLsCmd() *cobra.Command {
-	var asJSON, live bool
+	var asJSON, live, held bool
 	cmd := &cobra.Command{
 		Use:   "ls",
 		Short: "List your names",
@@ -76,6 +76,12 @@ func newNamesLsCmd() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(out, "%d/%d names used\n", list.Used, list.Limit)
+			if !held { // one line, not one per released name: they pile up and bury the table
+				if len(list.Held) > 0 {
+					fmt.Fprintf(out, "%d old name(s) on hold for you to reclaim (`tuzy names ls --held`)\n", len(list.Held))
+				}
+				return nil
+			}
 			for _, h := range list.Held {
 				note := "released"
 				if h.RenamedTo != nil {
@@ -89,6 +95,7 @@ func newNamesLsCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	cmd.Flags().BoolVar(&live, "live", true, "show whether each tunnel is online")
+	cmd.Flags().BoolVar(&held, "held", false, "also list the names you released or renamed (on hold for you to reclaim)")
 	return cmd
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/nhtera/tuzy/internal/api"
+	"github.com/nhtera/tuzy/internal/ui"
 )
 
 func newLoginCmd() *cobra.Command {
@@ -73,7 +74,7 @@ set TUZY_TOKEN instead.`,
 				if err := store.Set(env.server.Host, token); err != nil {
 					return fmt.Errorf("logged in, but could not save the token: %w", err)
 				}
-				fmt.Fprintf(out, "✓ Logged in as %s\n", user.Email)
+				fmt.Fprintf(out, "%s Logged in as %s\n", ui.Check, user.Email)
 				if env.token != "" {
 					fmt.Fprintln(out, "note: TUZY_TOKEN is set and takes precedence over this login.")
 				}

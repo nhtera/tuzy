@@ -11,6 +11,7 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/term"
 
+	"github.com/nhtera/tuzy/internal/ui"
 	"github.com/nhtera/tuzy/internal/update"
 )
 
@@ -72,7 +73,7 @@ func newUpdateCmd() *cobra.Command {
 			if err := u.Install(bin, version); err != nil {
 				return err
 			}
-			fmt.Fprintf(out, "✓ updated to %s (%s)\n", version, u.Exe)
+			fmt.Fprintf(out, "%s updated to %s (%s)\n", ui.Check, version, u.Exe)
 			fmt.Fprintln(out, "Running tunnels keep the old version until restarted (`tuzy service restart` for the service).")
 			return nil
 		},
