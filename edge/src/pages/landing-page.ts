@@ -93,6 +93,7 @@ export function landingPage(): Response {
 <div class="setup">
 <div class="panel"><h3>Install</h3><div class="rows">
 <div class="row"><span>macOS (Homebrew)</span><div class="cmd"><pre><code id="i-brew">brew install nhtera/tap/tuzy</code></pre>${copyBtn("i-brew", "Homebrew command")}</div></div>
+<div class="row"><span>Windows (PowerShell)</span><div class="cmd"><pre><code id="i-ps1">irm https://tuzy.dev/install.ps1 | iex</code></pre>${copyBtn("i-ps1", "PowerShell command")}</div></div>
 <div class="row"><span>Windows (Scoop)</span><div class="cmd"><pre><code id="i-scoop">scoop bucket add nhtera https://github.com/nhtera/scoop-bucket
 scoop install tuzy</code></pre>${copyBtn("i-scoop", "Scoop commands")}</div></div>
 <div class="row"><span>Anywhere with Go</span><div class="cmd"><pre><code id="i-go">go install github.com/nhtera/tuzy/cmd/tuzy@latest</code></pre>${copyBtn("i-go", "Go command")}</div></div>

@@ -4,7 +4,7 @@
 # Downloads the tuzy release for this OS/arch from GitHub, verifies checksums.txt (ed25519
 # signature with the tuzy release key when openssl can check it, always sha256) and installs the
 # binary to $TUZY_INSTALL_DIR (default ~/.local/bin). Pin a version with TUZY_VERSION=v1.2.3.
-# Windows: use `scoop bucket add nhtera https://github.com/nhtera/scoop-bucket; scoop install tuzy`.
+# Windows: `irm https://tuzy.dev/install.ps1 | iex` (scripts/install.ps1), or Scoop.
 set -eu
 
 REPO="https://github.com/nhtera/tuzy/releases"
@@ -36,7 +36,7 @@ main() {
   case "$os" in
     Darwin) os=darwin ;;
     Linux) os=linux ;;
-    *) die "unsupported OS $os (on Windows use scoop; elsewhere: go install github.com/nhtera/tuzy/cmd/tuzy@latest)" ;;
+    *) die "unsupported OS $os (on Windows run in PowerShell: irm https://tuzy.dev/install.ps1 | iex; elsewhere: go install github.com/nhtera/tuzy/cmd/tuzy@latest)" ;;
   esac
   arch=$(uname -m)
   case "$arch" in

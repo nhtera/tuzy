@@ -54,5 +54,6 @@ jobs:
           echo "$body" | grep -q '"ok":true'
           echo "health: $body" >> "$GITHUB_STEP_SUMMARY"
           curl -fsS -o /dev/null https://tuzy.dev/install.sh
+          curl -fsS -o /dev/null https://tuzy.dev/install.ps1
           code=$(curl -s -o /dev/null -w '%{http_code}' https://tuzy-smoke-offline.tuzy.dev/)
           test "$code" = 502 # offline page for a name nobody runs

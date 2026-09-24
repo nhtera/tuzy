@@ -8,7 +8,7 @@ approval. The job then:
 2. records a D1 Time Travel bookmark in the job summary;
 3. applies migrations;
 4. deploys;
-5. smoke-tests `/api/v1/health`, `/install.sh` and the offline page.
+5. smoke-tests `/api/v1/health`, `/install.sh`, `/install.ps1` and the offline page.
 
 Every edge deploy reconnects every agent once (GOAWAY / 1012 → U(0, 3 s) jitter).
 

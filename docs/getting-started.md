@@ -8,16 +8,22 @@ tuzy gives a service on your machine a permanent public URL: `https://<name>.tuz
 |---|---|
 | macOS (Homebrew) | `brew install nhtera/tap/tuzy` (macOS only; on Linux use the script) |
 | macOS / Linux | `curl -fsSL https://tuzy.dev/install.sh \| sh` |
+| Windows (PowerShell) | `irm https://tuzy.dev/install.ps1 \| iex` |
 | Windows (Scoop) | `scoop bucket add nhtera https://github.com/nhtera/scoop-bucket` then `scoop install tuzy` |
 | Anywhere with Go | `go install github.com/nhtera/tuzy/cmd/tuzy@latest` |
 
 `install.sh` installs to `~/.local/bin`. Set `TUZY_INSTALL_DIR` to install somewhere else, or
 `TUZY_VERSION=v1.2.3` to pin a version.
 
+`install.ps1` installs to `%LOCALAPPDATA%\Programs\tuzy` and adds it to your user PATH, no admin
+needed. It reads the same variables (`$env:TUZY_INSTALL_DIR`, `$env:TUZY_VERSION`); set
+`$env:TUZY_NO_MODIFY_PATH = 1` to leave PATH alone.
+
 **What the installer trusts:**
 - `curl | sh` trusts TLS to `tuzy.dev` (the script) and `github.com` (the release).
 - The script always checks the archive's sha256.
-- It also checks the tuzy release key's signature when your `openssl` supports ed25519.
+- It also checks the tuzy release key's signature when your `openssl` supports ed25519. Windows
+  has no built-in ed25519, so `install.ps1` checks sha256 only.
 - Every `tuzy update` verifies that signature; `tuzy update --check` afterwards confirms the
   chain.
 - To verify by hand: `cosign verify-blob` (see the release notes).

@@ -4,8 +4,12 @@ interface Env {
   ALLOW_LOG_EMAIL?: string;
 }
 
-// Text modules (wrangler "rules": scripts/*.sh).
+// Text modules (wrangler "rules": scripts/*.sh, scripts/*.ps1).
 declare module "*.sh" {
+  const content: string;
+  export default content;
+}
+declare module "*.ps1" {
   const content: string;
   export default content;
 }

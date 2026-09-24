@@ -85,6 +85,26 @@ jobs:
       - run: sh scripts/install_test.sh
       - run: shellcheck -s sh scripts/install.sh scripts/install_test.sh
 
+  install-windows:
+    # install.ps1 against a windows/amd64 snapshot, under Windows PowerShell 5.1 and PowerShell 7.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sign --single-target
+        env:
+          TUZY_RELEASE_KEY: unused-in-snapshot
+          TAP_GITHUB_TOKEN: unused-in-snapshot
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install_test.ps1
+      - run: pwsh -NoProfile -File scripts/install_test.ps1
+
   docs:
     # docs/cli-reference.md must match the real command tree (`tuzy <cmd> --help`).
     runs-on: ubuntu-latest

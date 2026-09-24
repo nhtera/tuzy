@@ -17,11 +17,12 @@ so a webhook URL you register once keeps working across restarts, laptops and CI
 |---|---|
 | macOS / Linux | `curl -fsSL https://tuzy.dev/install.sh \| sh` |
 | macOS (Homebrew) | `brew install nhtera/tap/tuzy` |
+| Windows (PowerShell) | `irm https://tuzy.dev/install.ps1 \| iex` |
 | Windows (Scoop) | `scoop bucket add nhtera https://github.com/nhtera/scoop-bucket` then `scoop install tuzy` |
 | Go | `go install github.com/nhtera/tuzy/cmd/tuzy@latest` |
 
 The installer checks the release's ed25519 signature (when `openssl` can) and sha256 before installing to
-`~/.local/bin`. Every `tuzy update` verifies the signature. See [getting started](docs/getting-started.md)
+`~/.local/bin`; the Windows one checks sha256 and installs to `%LOCALAPPDATA%\Programs\tuzy`. Every `tuzy update` verifies the signature. See [getting started](docs/getting-started.md)
 for the full trust story.
 
 ## Quickstart
@@ -76,7 +77,7 @@ internal/            Go packages: tunnel, cli, inspector, upstream, fileserver, 
 protocol/            PROTOCOL.md + golden frame vectors
 edge/                Cloudflare Worker: wrangler.jsonc, src/, migrations/, test/
 e2e/                 end-to-end suite (build tag e2e) + storm load driver
-scripts/             install.sh (served at tuzy.dev/install.sh) + its test, data scripts
+scripts/             install.sh / install.ps1 (served at tuzy.dev) + their tests, data scripts
 tools/               release-sign (release checksums), gen-cli-reference
 docs/                user and ops documentation
 .github/workflows/   ci.yml, deploy.yml (edge), release.yml (CLI)

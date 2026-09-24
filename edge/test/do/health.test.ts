@@ -54,4 +54,13 @@ describe("install.sh", () => {
     expect(body.startsWith("#!/bin/sh")).toBe(true);
     expect(body).toContain('REPO="https://github.com/nhtera/tuzy/releases"');
   });
+
+  it("serves the Windows installer from the apex", async () => {
+    const res = await exports.default.fetch("https://tuzy.dev/install.ps1", { headers: { host: "tuzy.dev" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    const body = await res.text();
+    expect(body.startsWith("# tuzy installer for Windows")).toBe(true);
+    expect(body).toContain("$repo = 'https://github.com/nhtera/tuzy/releases'");
+  });
 });
