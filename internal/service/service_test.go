@@ -18,7 +18,8 @@ func spec(t *testing.T, goos string) Spec {
 	if err := os.WriteFile(proj, []byte("[tunnels.x]\naddr = 3000\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	return Spec{GOOS: goos, Exe: "/usr/local/bin/tuzy", ProjectFile: proj, LogPath: filepath.Join(home, "logs", "tuzy.log"), Home: home, UID: 501}
+	// Host-absolute paths: in real use Spec.GOOS is always the host OS.
+	return Spec{GOOS: goos, Exe: filepath.Join(filepath.VolumeName(home)+string(filepath.Separator), "opt", "tuzy", "tuzy"), ProjectFile: proj, LogPath: filepath.Join(home, "logs", "tuzy.log"), Home: home, UID: 501}
 }
 
 func TestRenderPlist(t *testing.T) {
@@ -52,7 +53,7 @@ func TestRenderSystemdUnit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `ExecStart="/home/me/bin/tu\"zy$$%%" "start" "--all" "--file" "` + s.ProjectFile + `" "--log" "` + s.LogPath + `" "--log-format" "json" "--quiet"`
+	want := `ExecStart="/home/me/bin/tu\"zy$$%%" "start" "--all" "--file" ` + systemdQuote(s.ProjectFile) + ` "--log" ` + systemdQuote(s.LogPath) + ` "--log-format" "json" "--quiet"`
 	// WorkingDirectory must NOT be quoted: systemd rejects `"/abs"` as a non-absolute path.
 	for _, w := range []string{want, "Restart=always", "WantedBy=default.target", "\nWorkingDirectory=" + filepath.Dir(s.ProjectFile) + "\n"} {
 		if !strings.Contains(out, w) {

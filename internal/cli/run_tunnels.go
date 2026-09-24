@@ -132,6 +132,11 @@ func startInspector(o inspectOpts, env *runtimeEnv, rt http.RoundTripper, out io
 // runTunnels runs every tunnel in one process until ctx is cancelled (graceful drain → nil) or one
 // of them fails terminally (all stop, that error is returned).
 func runTunnels(ctx context.Context, env *runtimeEnv, specs []tunnelSpec, p *ui.Printer, lg *logging.Logger, iopts inspectOpts, out io.Writer) error {
+	defer func() {
+		for _, s := range specs {
+			closeTransport(s.transport)
+		}
+	}()
 	if env.token == "" {
 		return errors.New("not logged in: run `tuzy login` (or set TUZY_TOKEN in CI)")
 	}
@@ -265,4 +270,12 @@ func (l logFlags) output(cmd *cobra.Command, env *runtimeEnv, quiet bool) (p *ui
 		notices = cmd.ErrOrStderr()
 	}
 	return ui.New(human, quiet, env.displayServer()), lg, notices, nil
+}
+
+// closeTransport releases per-tunnel resources (e.g. the file server's directory handle, which
+// Windows won't let anyone delete while it is open). Safe to call more than once.
+func closeTransport(rt http.RoundTripper) {
+	if c, ok := rt.(io.Closer); ok {
+		_ = c.Close()
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -88,7 +89,7 @@ func toJSON(v any) string {
 
 func TestServiceInstallDryRunRendersTheUnit(t *testing.T) {
 	dir := t.TempDir()
-	proj := dir + "/tuzy.toml"
+	proj := filepath.Join(dir, "tuzy.toml")
 	if err := os.WriteFile(proj, []byte("[tunnels.web]\naddr = \"3000\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

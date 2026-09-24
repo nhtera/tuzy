@@ -63,6 +63,7 @@ local app) or a file:// directory to serve (read-only, with directory listing; d
 			if err != nil {
 				return err
 			}
+			defer closeTransport(transport) // also on early errors before runTunnels
 			// Resolve (and, if needed, claim) the name once — never inside the reconnect loop.
 			resolved, err := nameResolver(cmd, api.New(env.server, env.token, userAgent())).Resolve(cmd.Context(), name)
 			if err != nil {

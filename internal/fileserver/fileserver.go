@@ -25,6 +25,15 @@ import (
 // whether that path is allowed (see upstream.ResolveCLIDir / ResolveProjectDir).
 type RoundTripper struct {
 	handler http.Handler
+	root    *os.Root
+}
+
+// Close releases the directory handle (Windows can't delete or rename an open directory).
+func (rt *RoundTripper) Close() error {
+	if rt == nil || rt.root == nil {
+		return nil
+	}
+	return rt.root.Close()
 }
 
 // New opens dir (via os.OpenRoot, so symlinks that resolve outside dir — including any absolute
@@ -36,7 +45,7 @@ func New(dir string) (*RoundTripper, error) {
 		return nil, err
 	}
 	fsys := hideFS{root: root, fsys: root.FS()}
-	return &RoundTripper{handler: http.FileServerFS(fsys)}, nil
+	return &RoundTripper{handler: http.FileServerFS(fsys), root: root}, nil
 }
 
 // allowedMethods is the Allow header value for a 405 response.

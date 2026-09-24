@@ -324,7 +324,7 @@ describe("long-stream budget", () => {
     const req = await agent.request("/sse");
     agent.head(req.id, 200, [["content-type", "text/event-stream"]]);
     await v;
-    const reset = await agent.next((f) => f.type === FrameType.RESET && f.streamId === req.id, 5000);
+    const reset = await agent.next((f) => f.type === FrameType.RESET && f.streamId === req.id, 8000);
     expect(reset.json).toMatchObject({ code: "long_stream_budget" });
     agent.close();
   });
@@ -336,7 +336,7 @@ describe("long-stream budget", () => {
     const req = await agent.request("/sse");
     agent.head(req.id, 200, [["content-type", "text/event-stream"]]);
     await v;
-    await sleep(2800); // LONG_STREAM_AFTER is 1 s in tests → ~1.8 s accrued
+    await sleep(4800); // LONG_STREAM_AFTER is 3 s in tests → ~1.8 s accrued
     agent.end(req.id);
     await waitFor(async () => (((await api("/me", { token: u.token })).json.usage?.long_stream_seconds as number) ?? 0) >= 1);
     const me = await api("/me", { token: u.token });

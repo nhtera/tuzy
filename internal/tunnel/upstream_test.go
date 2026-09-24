@@ -21,6 +21,7 @@ func TestFileTargetServesThroughTheTunnel(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := fileserver.New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +42,7 @@ func TestFileTargetServesThroughTheTunnel(t *testing.T) {
 func TestWSUpgradeToFileTargetIs501(t *testing.T) {
 	dir := t.TempDir()
 	rt, err := fileserver.New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}

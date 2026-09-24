@@ -47,6 +47,7 @@ func TestServesAFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +63,7 @@ func TestIndexHTMLServedAtRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +80,7 @@ func TestDotDotAfterCleanIs404(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +110,7 @@ func TestRelativeSymlinkChainEscapingRootIs404(t *testing.T) {
 	symlink(t, rel, filepath.Join(dir, "sub", "escape.txt"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,6 +130,7 @@ func TestAbsoluteSymlinkIs404(t *testing.T) {
 	symlink(t, target, filepath.Join(dir, "escape.txt"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,6 +152,7 @@ func TestSymlinkedDirInsideRootWorks(t *testing.T) {
 	symlink(t, "real", filepath.Join(dir, "alias"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,6 +171,7 @@ func TestDotfilesHiddenFromGetAndListing(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,6 +199,7 @@ func TestDotDirHidesEverythingInside(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,6 +215,7 @@ func TestRangeRequestWorks(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,6 +237,7 @@ func TestHeadRequestNoBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,6 +261,7 @@ func TestSymlinkedFileInsideRootWorks(t *testing.T) {
 	symlink(t, "a.txt", filepath.Join(dir, "alias.txt"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,6 +282,7 @@ func TestFileSymlinkToDotfileIs404AndHiddenFromListing(t *testing.T) {
 	symlink(t, ".env", filepath.Join(dir, "env.txt"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,6 +309,7 @@ func TestDirSymlinkToDotDirIs404AndHiddenFromListing(t *testing.T) {
 	symlink(t, ".git", filepath.Join(dir, "g"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,6 +337,7 @@ func TestSymlinkChainEndingAtDotfileIs404(t *testing.T) {
 	symlink(t, "b", filepath.Join(dir, "a"))
 
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,6 +356,7 @@ func TestRoundTripHonoursContextCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,6 +428,7 @@ func TestRoundTripMethodNotAllowed(t *testing.T) {
 		t.Fatal(err)
 	}
 	rt, err := New(dir)
+	t.Cleanup(func() { _ = rt.Close() }) // release the dir handle before TempDir cleanup
 	if err != nil {
 		t.Fatal(err)
 	}

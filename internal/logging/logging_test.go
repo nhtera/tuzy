@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -93,7 +94,7 @@ func TestFileDestinationRotatesAndIsPrivate(t *testing.T) {
 	if err != nil || st.Size() == 0 || st.Size() > 200 {
 		t.Fatalf("new log: %v %v", st, err)
 	}
-	if st.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o600 { // Windows has no Unix modes
 		t.Fatalf("mode %v", st.Mode().Perm())
 	}
 }

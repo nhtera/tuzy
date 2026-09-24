@@ -11,7 +11,9 @@ const testBindings = {
   HEAD_TIMEOUT_SECONDS: "3",
   CREDIT_TIMEOUT_SECONDS: "1",
   DEAD_SOCKET_SECONDS: "2",
-  LONG_STREAM_AFTER_SECONDS: "1",
+  // 3 s: short enough for the long-stream tests, long enough that slow CI runners don't push
+  // ordinary bulk tests (e.g. 256 slow-reader streams) over the per-name long-stream cap.
+  LONG_STREAM_AFTER_SECONDS: "3",
   MAX_STREAM_SECONDS: "3600",
   HELLO_TIMEOUT_SECONDS: "1",
   INTERSTITIAL_SECRET: "test-interstitial-secret",

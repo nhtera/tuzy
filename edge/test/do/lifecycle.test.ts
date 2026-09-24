@@ -137,7 +137,7 @@ describe("timeouts and caps", () => {
       a.head(req.id, 200, [["content-type", "text/event-stream"]]);
     }
     await Promise.all(streams);
-    await sleep(1_500);
+    await sleep(3_500); // past LONG_STREAM_AFTER (3 s in tests)
     const resets = a.frames.filter((f) => f.type === FrameType.RESET);
     expect(resets.length).toBe(1);
     expect(resets[0]!.json).toMatchObject({ code: "stream_timeout" });

@@ -72,6 +72,7 @@ func newStartCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("tunnels.%s: %w", n, err)
 				}
+				defer closeTransport(transport) // also on early errors before runTunnels
 				hh := t.HostHeader
 				if hh == "" {
 					hh = "preserve"
