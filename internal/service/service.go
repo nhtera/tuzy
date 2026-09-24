@@ -42,6 +42,9 @@ func (s Spec) Args() []string {
 // service survives `brew upgrade` / `scoop update` (the versioned directory is removed then).
 func StableExe(exe string) string {
 	p := filepath.ToSlash(exe)
+	if i := strings.Index(p, "/Caskroom/tuzy/"); i >= 0 { // cask: <prefix>/bin/tuzy links the current version
+		return filepath.FromSlash(p[:i] + "/bin/tuzy")
+	}
 	if i := strings.Index(p, "/Cellar/tuzy/"); i >= 0 {
 		rest := p[i+len("/Cellar/tuzy/"):]
 		if j := strings.Index(rest, "/"); j >= 0 {

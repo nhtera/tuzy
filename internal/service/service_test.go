@@ -112,6 +112,7 @@ func TestStableExe(t *testing.T) {
 		"/home/linuxbrew/.linuxbrew/Cellar/tuzy/1.2.3/bin/tuzy": "/home/linuxbrew/.linuxbrew/opt/tuzy/bin/tuzy",
 		"/Users/me/scoop/apps/tuzy/1.2.3/tuzy.exe":              "/Users/me/scoop/apps/tuzy/current/tuzy.exe",
 		"/usr/local/bin/tuzy":                                   "/usr/local/bin/tuzy",
+		"/opt/homebrew/Caskroom/tuzy/1.2.3/tuzy":                "/opt/homebrew/bin/tuzy",
 	}
 	for in, want := range cases {
 		if got := filepath.ToSlash(StableExe(in)); got != want {

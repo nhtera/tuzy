@@ -1,0 +1,47 @@
+name: release-cli
+
+# CLI releases ONLY from vX.Y.Z tags (edge-v* tags don't match). Never deploys the edge.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: write   # GitHub Release
+  id-token: write   # cosign keyless
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Protocol gate (prod edge must speak this CLI's protocol)
+        run: |
+          proto=$(sed -n 's/^const Version = \([0-9]*\)$/\1/p' internal/protocol/version.go)
+          health=$(curl -fsS https://tuzy.dev/api/v1/health)
+          min=$(echo "$health" | sed -n 's/.*"min_proto":\([0-9]*\).*/\1/p')
+          max=$(echo "$health" | sed -n 's/.*"max_proto":\([0-9]*\).*/\1/p')
+          echo "CLI proto $proto, edge $min–$max"
+          test -n "$proto" && test -n "$max" && test "$proto" -ge "$min" && test "$proto" -le "$max"
+      - run: go test -race ./...
+      - uses: sigstore/cosign-installer@v4
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          TUZY_RELEASE_KEY: ${{ secrets.TUZY_RELEASE_KEY }}
+          TUZY_LICENSE: ${{ vars.TUZY_LICENSE }}
+      - name: Verify the published signature with the embedded key
+        run: |
+          tag=${GITHUB_REF_NAME}
+          curl -fsSLO "https://github.com/nhtera/tuzy/releases/download/$tag/checksums.txt"
+          curl -fsSLO "https://github.com/nhtera/tuzy/releases/download/$tag/checksums.txt.sig"
+          go run ./tools/release-sign verify checksums.txt

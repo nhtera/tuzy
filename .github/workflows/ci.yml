@@ -28,7 +28,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx vitest run --project unit
-      - run: npx vitest run --project do
+      - run: npx vitest run --project "do"
 
   go:
     strategy:
@@ -46,3 +46,53 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
+
+  e2e:
+    # wrangler dev + sample app + the real CLI (e2e/, build tag e2e).
+    runs-on: ubuntu-latest
+    needs: [edge, go]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: edge/package-lock.json
+      - run: npm ci
+        working-directory: edge
+      - run: go test -tags e2e -count=1 -timeout 20m ./e2e/...
+
+  release-snapshot:
+    # Catches GoReleaser / artifact-contract breakage before a tag; also tests install.sh on it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sign
+        env:
+          TUZY_LICENSE: ${{ vars.TUZY_LICENSE }}
+          TUZY_RELEASE_KEY: unused-in-snapshot
+          TAP_GITHUB_TOKEN: unused-in-snapshot
+      - run: sh scripts/install_test.sh
+      - run: shellcheck -s sh scripts/install.sh scripts/install_test.sh
+
+  docs:
+    # docs/cli-reference.md must match the real command tree (`tuzy <cmd> --help`).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: go run ./tools/gen-cli-reference > docs/cli-reference.md
+      - run: git diff --exit-code docs/cli-reference.md

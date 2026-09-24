@@ -1,0 +1,106 @@
+# GoReleaser config for the tuzy CLI (tags vX.Y.Z only; edge deploys use edge-vX.Y.Z tags).
+# Artifact contract used by `tuzy update` and install.sh (phase 8):
+#   tuzy_<version>_<os>_<arch>.tar.gz (.zip on Windows) containing the `tuzy` binary,
+#   checksums.txt (sha256) and checksums.txt.sig (base64 ed25519, tools/release-sign).
+# Local dry run: goreleaser release --snapshot --clean --skip=sign
+version: 2
+project_name: tuzy
+
+before:
+  hooks:
+    - go mod verify
+
+builds:
+  - id: tuzy
+    main: ./cmd/tuzy
+    binary: tuzy
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+      - -X github.com/nhtera/tuzy/internal/cli.version={{ .Version }}
+      - -X github.com/nhtera/tuzy/internal/cli.commit={{ .ShortCommit }}
+      - -X github.com/nhtera/tuzy/internal/cli.date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: tuzy
+    ids: [tuzy]
+    name_template: "tuzy_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [README.md]
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+signs:
+  # Required by `tuzy update`: ed25519 over checksums.txt with the tuzy release key.
+  - id: release-key
+    artifacts: checksum
+    cmd: go
+    args: ["run", "./tools/release-sign", "sign", "${artifact}"]
+    signature: "${artifact}.sig"
+    env:
+      - TUZY_RELEASE_KEY={{ .Env.TUZY_RELEASE_KEY }}
+  # For humans: cosign keyless (GitHub OIDC) — `cosign verify-blob` instructions in docs.
+  - id: cosign
+    artifacts: checksum
+    cmd: cosign
+    certificate: "${artifact}.pem"
+    signature: "${artifact}.cosign.sig"
+    args: ["sign-blob", "--output-certificate=${certificate}", "--output-signature=${signature}", "${artifact}", "--yes"]
+
+homebrew_casks:
+  # `brew install nhtera/tap/tuzy` (macOS; Linux users use install.sh or go install).
+  - name: tuzy
+    ids: [tuzy]
+    repository:
+      owner: nhtera
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    skip_upload: auto # prereleases (vX.Y.Z-rc.N) never touch the tap
+    homepage: https://tuzy.dev
+    description: Expose localhost at a stable https://<name>.tuzy.dev URL
+    binaries: [tuzy]
+    hooks:
+      post:
+        # The binary isn't notarized: drop the download quarantine so Gatekeeper lets it run.
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/tuzy"]
+          end
+
+scoops:
+  - name: tuzy
+    ids: [tuzy]
+    repository:
+      owner: nhtera
+      name: scoop-bucket
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    skip_upload: auto
+    homepage: https://tuzy.dev
+    description: Expose localhost at a stable https://<name>.tuzy.dev URL
+    license: "{{ .Env.TUZY_LICENSE }}"
+
+release:
+  github:
+    owner: nhtera
+    name: tuzy
+  prerelease: auto # vX.Y.Z-rc.N → prerelease (excluded from releases/latest, i.e. from `tuzy update`)
+  # releases/latest sorts by the tagged commit's date: mark stable releases latest explicitly so a
+  # hotfix tagged on an older commit still reaches `tuzy update`.
+  make_latest: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
+  footer: |
+    Verify: `tuzy update` checks `checksums.txt.sig` automatically. Manual: `cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.cosign.sig --certificate-identity-regexp 'https://github.com/nhtera/tuzy/' --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt`
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:", "^chore:"]

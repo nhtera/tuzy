@@ -58,6 +58,8 @@ export function privacyPage(): Response {
 </ul>
 <h2>What we don't store</h2>
 <p>Traffic through your tunnels is relayed, not recorded: we don't keep request or response bodies, and we don't log visitor URLs. The request inspector in the CLI keeps traffic only in your computer's memory.</p>
+<h2>The CLI</h2>
+<p>At most once a day the CLI asks github.com whether a newer release exists (turn this off with <code>TUZY_NO_UPDATE_CHECK=1</code> or <code>update_check = false</code>). Nothing about you or your tunnels is sent.</p>
 <h2>Processors</h2>
 <p>tuzy runs on Cloudflare (Workers, Durable Objects, D1, KV, Email). Login codes are sent through Cloudflare's email service.</p>
 <h2>Deleting your data</h2>

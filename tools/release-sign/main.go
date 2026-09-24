@@ -3,6 +3,7 @@
 //
 //	release-sign keygen <private-key-file>   write a new key (0600), print the public key (base64)
 //	release-sign sign <file>                  write <file>.sig using TUZY_RELEASE_KEY (base64 seed)
+//	release-sign verify <file>                check <file>.sig against the keys embedded in the CLI
 //
 // In CI the key comes from a secret (TUZY_RELEASE_KEY); it is never committed.
 package main
@@ -15,6 +16,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/nhtera/tuzy/internal/update"
 )
 
 func main() {
@@ -26,7 +29,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) != 2 {
-		return errors.New("usage: release-sign keygen <private-key-file> | sign <file>")
+		return errors.New("usage: release-sign keygen <private-key-file> | sign <file> | verify <file>")
 	}
 	switch args[0] {
 	case "keygen":
@@ -58,6 +61,20 @@ func run(args []string) error {
 		}
 		sig := ed25519.Sign(ed25519.NewKeyFromSeed(seed), data)
 		return os.WriteFile(args[1]+".sig", []byte(base64.StdEncoding.EncodeToString(sig)+"\n"), 0o644)
+	case "verify":
+		data, err := os.ReadFile(args[1])
+		if err != nil {
+			return err
+		}
+		sig, err := os.ReadFile(args[1] + ".sig")
+		if err != nil {
+			return err
+		}
+		if err := update.VerifySignature(update.ReleaseKeys, data, sig); err != nil {
+			return err
+		}
+		fmt.Println("signature OK (embedded release key)")
+		return nil
 	}
 	return fmt.Errorf("unknown command %q", args[0])
 }

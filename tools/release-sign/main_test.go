@@ -43,3 +43,21 @@ func TestKeygenSignVerifyRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestVerifyRejectsForeignSignatures(t *testing.T) {
+	dir := t.TempDir()
+	key := filepath.Join(dir, "k")
+	if err := run([]string{"keygen", key}); err != nil { // a key that is NOT embedded
+		t.Fatal(err)
+	}
+	seed, _ := os.ReadFile(key)
+	t.Setenv("TUZY_RELEASE_KEY", string(seed))
+	f := filepath.Join(dir, "checksums.txt")
+	_ = os.WriteFile(f, []byte("x"), 0o644)
+	if err := run([]string{"sign", f}); err != nil {
+		t.Fatal(err)
+	}
+	if err := run([]string{"verify", f}); err == nil {
+		t.Fatal("a foreign key's signature verified against the embedded keys")
+	}
+}

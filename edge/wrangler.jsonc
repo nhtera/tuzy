@@ -56,6 +56,8 @@
   // Invocation logs off: one log per visitor request would exceed the 20M/mo included events at
   // launch scale and retain visitor URLs. console.* logs (errors, admin/audit events) stay on.
   "observability": { "enabled": true, "head_sampling_rate": 0.1, "logs": { "invocation_logs": false } },
+  // scripts/install.sh is bundled as a text module and served at https://tuzy.dev/install.sh.
+  "rules": [{ "type": "Text", "globs": ["**/*.sh"], "fallthrough": true }],
   // Deployed version id for GET /api/v1/health (diagnose).
   "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "dev": { "port": 8787 }

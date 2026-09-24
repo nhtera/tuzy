@@ -239,6 +239,8 @@ func TestDetectMethod(t *testing.T) {
 		`C:/Users/me/scoop/apps/tuzy/current/tuzy.exe`: MethodScoop,
 		"/Users/me/go/bin/tuzy":                        MethodGo,
 		"/usr/local/bin/tuzy":                          MethodBinary,
+		"/opt/homebrew/bin/tuzy":                       MethodBinary, // dropped there by hand
+		"/opt/homebrew/Caskroom/tuzy/1.0.0/tuzy":       MethodBrew,   // cask (goreleaser homebrew_casks)
 		"/Users/me/.local/bin/tuzy":                    MethodBinary,
 	}
 	for exe, want := range cases {

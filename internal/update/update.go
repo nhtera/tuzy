@@ -350,7 +350,7 @@ const (
 func DetectMethod(exe, gopath, gobin, home string) Method {
 	p := filepath.ToSlash(exe)
 	switch {
-	case strings.Contains(p, "/Cellar/"): // brew binaries always resolve into the Cellar
+	case strings.Contains(p, "/Cellar/"), strings.Contains(p, "/Caskroom/"): // brew formula / cask payloads
 		return MethodBrew
 	case strings.Contains(strings.ToLower(p), "/scoop/apps/"):
 		return MethodScoop

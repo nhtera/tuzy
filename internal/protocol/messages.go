@@ -1,5 +1,7 @@
 package protocol
 
+import "encoding/json"
+
 // JSON payloads of the control and head frames (§2.1). Unknown fields are ignored on decode.
 
 // HelloMsg is the agent's first frame.
@@ -50,6 +52,16 @@ type ReqHeadMsg struct {
 type ResHeadMsg struct {
 	Status  int      `json:"status"`
 	Headers []Header `json:"headers"`
+}
+
+// MarshalJSON always emits `headers` as an array: PROTOCOL.md requires one, and a nil slice would
+// encode as null (the edge rejects that RES_HEAD, e.g. a WebSocket 101 without extra headers).
+func (m ResHeadMsg) MarshalJSON() ([]byte, error) {
+	type plain ResHeadMsg
+	if m.Headers == nil {
+		m.Headers = []Header{}
+	}
+	return json.Marshal(plain(m))
 }
 
 // WSCloseMsg closes a visitor WebSocket.

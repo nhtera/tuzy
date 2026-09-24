@@ -14,6 +14,7 @@ import { meRoutes } from "./me-routes";
 import { namesRoutes } from "./names-routes";
 import { tokenRoutes } from "./token-routes";
 import { abusePage, abuseScript } from "../pages/abuse-page";
+import { installScript } from "../pages/install-script";
 import { landingPage } from "../pages/landing-page";
 import { aupPage, privacyPage, securityTxt, termsPage } from "../pages/legal-pages";
 
@@ -37,4 +38,5 @@ apiApp.get("/aup", () => aupPage());
 apiApp.get("/abuse", (c) => abusePage(c.req.query("name") ?? null));
 apiApp.get("/abuse.js", () => abuseScript());
 apiApp.get("/.well-known/security.txt", (c) => securityTxt(c.env.BASE_DOMAIN));
+apiApp.get("/install.sh", () => installScript());
 apiApp.notFound(() => new Response("tuzy: not found\n", { status: 404 }));

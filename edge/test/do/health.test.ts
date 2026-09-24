@@ -44,3 +44,14 @@ describe("interstitial opt-out header", () => {
     agent.close();
   });
 });
+
+describe("install.sh", () => {
+  it("serves the installer from the apex", async () => {
+    const res = await exports.default.fetch("https://tuzy.dev/install.sh", { headers: { host: "tuzy.dev" } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("shellscript");
+    const body = await res.text();
+    expect(body.startsWith("#!/bin/sh")).toBe(true);
+    expect(body).toContain('REPO="https://github.com/nhtera/tuzy/releases"');
+  });
+});

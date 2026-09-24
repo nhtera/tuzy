@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -152,5 +153,15 @@ func TestEncodeJSONRoundTrip(t *testing.T) {
 	var h HelloMsg
 	if err := f.UnmarshalPayload(&h); err != nil || h.InstanceID != "abcdefghijklmnop" {
 		t.Fatalf("roundtrip: %v %+v", err, h)
+	}
+}
+
+func TestResHeadHeadersAreNeverNull(t *testing.T) {
+	b, err := EncodeJSON(ResHead, 1, ResHeadMsg{Status: 101})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b[HeaderSize:]), `"headers":[]`) {
+		t.Fatalf("RES_HEAD payload %s must carry an empty headers array, not null", b[HeaderSize:])
 	}
 }

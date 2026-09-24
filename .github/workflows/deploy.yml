@@ -1,0 +1,58 @@
+name: deploy-edge
+
+# The edge deploys ONLY from edge-v* tags (or a manual run), behind the "production" environment's
+# required reviewers. A CLI release (v* tag) never deploys the edge.
+on:
+  push:
+    tags: ["edge-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-edge
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: edge
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: edge/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit && npx vitest run
+      - name: D1 Time Travel bookmark (restore point before migrations)
+        run: |
+          {
+            echo "### D1 bookmark before deploy"
+            echo '```'
+            npx wrangler d1 time-travel info tuzy
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Migrations (expand-only)
+        run: npx wrangler d1 migrations apply tuzy --remote
+      - name: Deploy
+        run: npx wrangler deploy
+      - name: Smoke
+        run: |
+          for _ in 1 2 3 4 5; do
+            body=$(curl -fsS https://tuzy.dev/api/v1/health) && break
+            sleep 5
+          done
+          echo "$body" | grep -q '"ok":true'
+          echo "health: $body" >> "$GITHUB_STEP_SUMMARY"
+          curl -fsS -o /dev/null https://tuzy.dev/install.sh
+          code=$(curl -s -o /dev/null -w '%{http_code}' https://tuzy-smoke-offline.tuzy.dev/)
+          test "$code" = 502 # offline page for a name nobody runs
