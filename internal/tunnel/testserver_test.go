@@ -30,6 +30,7 @@ type fakeEdge struct {
 	onlyName string // when set, only connects for this name are rejected
 	noPong   bool
 	goaway   *protocol.GoawayMsg // sent instead of READY
+	noHello  int                 // the next N connects are closed 1002 "no HELLO" (a wedged tunnel object)
 	conns    chan *edgeConn
 }
 
@@ -95,6 +96,16 @@ func (e *fakeEdge) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.Unmarshal(f.Payload, &ec.hello)
+	e.mu.Lock()
+	wedged := e.noHello > 0
+	if wedged {
+		e.noHello--
+	}
+	e.mu.Unlock()
+	if wedged {
+		_ = c.Close(websocket.StatusProtocolError, "no HELLO")
+		return
+	}
 	if goaway != nil {
 		b, _ := protocol.EncodeJSON(protocol.Goaway, 0, goaway)
 		_ = c.Write(ctx, websocket.MessageBinary, b)

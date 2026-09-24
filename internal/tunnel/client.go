@@ -241,7 +241,14 @@ func (c *Client) Run(ctx context.Context) error {
 			if errors.As(err, &rerr) && rerr.after > delay {
 				delay = rerr.after
 			}
-			attempt++
+			if isNoHello(err) {
+				// The edge resets a tunnel object whose agent socket never delivered HELLO (it wedges
+				// after some deploys), so a prompt retry reaches a fresh one: jittered like a restart,
+				// without growing the backoff.
+				delay = c.backoff.restart()
+			} else {
+				attempt++
+			}
 			c.emit(Event{Kind: EventReconnecting, Name: c.Name(), Err: err, RetryIn: delay})
 			continue
 		}
@@ -429,4 +436,11 @@ func goawayExit(g *protocol.GoawayMsg) error {
 		return &ExitError{Code: g.Reason, Message: msg("this session was logged out") + ": run `tuzy login`"}
 	}
 	return nil
+}
+
+// isNoHello reports a handshake the edge closed 1002 "no HELLO": the tunnel object never received
+// our HELLO and resets itself (edge ≥ edge-v1.1.6).
+func isNoHello(err error) bool {
+	var ce websocket.CloseError
+	return errors.As(err, &ce) && ce.Code == websocket.StatusProtocolError && ce.Reason == "no HELLO"
 }

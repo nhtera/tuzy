@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -538,4 +539,38 @@ func TestBackoffBounds(t *testing.T) {
 	if d := retryAfter(http.Header{"Retry-After": {"7"}}, now); d != 7*time.Second {
 		t.Fatalf("retry-after %v", d)
 	}
+}
+
+// The edge resets a tunnel object that never received HELLO; the agent retries promptly (restart
+// jitter) instead of growing its backoff, so a wedged object costs seconds, not minutes.
+func TestNoHelloRetriesPromptly(t *testing.T) {
+	edge := newFakeEdge(t)
+	edge.mu.Lock()
+	edge.noHello = 6
+	edge.mu.Unlock()
+	var mu sync.Mutex
+	var waits []time.Duration
+	a := startAgentHook(t, edge.url(), "http://127.0.0.1:1", func(c *Client) {
+		c.backoff = &backoff{rand: func() float64 { return 0.2 }} // restart 0.6 s; exponential would reach 1.6 s
+	}, func(o *Options) {
+		o.OnEvent = func(e Event) {
+			if e.Kind == EventReconnecting {
+				mu.Lock()
+				waits = append(waits, e.RetryIn)
+				mu.Unlock()
+			}
+		}
+	})
+	edge.next(15 * time.Second) // online after the six "no HELLO" closes
+	mu.Lock()
+	defer mu.Unlock()
+	if len(waits) != 6 {
+		t.Fatalf("reconnect events = %d, want 6", len(waits))
+	}
+	for i, w := range waits {
+		if w > time.Duration(0.2*float64(restartJitter)) {
+			t.Fatalf("retry %d waited %s, want restart jitter (≤ %s)", i+1, w, time.Duration(0.2*float64(restartJitter)))
+		}
+	}
+	_ = a
 }
