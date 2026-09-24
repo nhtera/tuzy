@@ -46,8 +46,8 @@ signs:
     cmd: go
     args: ["run", "./tools/release-sign", "sign", "${artifact}"]
     signature: "${artifact}.sig"
-    env:
-      - TUZY_RELEASE_KEY={{ .Env.TUZY_RELEASE_KEY }}
+    # TUZY_RELEASE_KEY is inherited from the environment (a templated `env:` entry is not
+    # resolvable here in GoReleaser v2.18).
   # For humans: cosign keyless (GitHub OIDC) — `cosign verify-blob` instructions in docs.
   - id: cosign
     artifacts: checksum
