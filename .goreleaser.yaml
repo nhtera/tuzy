@@ -52,9 +52,8 @@ signs:
   - id: cosign
     artifacts: checksum
     cmd: cosign
-    certificate: "${artifact}.pem"
-    signature: "${artifact}.cosign.sig"
-    args: ["sign-blob", "--output-certificate=${certificate}", "--output-signature=${signature}", "${artifact}", "--yes"]
+    signature: "${artifact}.sigstore.json" # cosign 3: one bundle (signature + certificate)
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
 
 homebrew_casks:
   # `brew install nhtera/tap/tuzy` (macOS; Linux users use install.sh or go install).
@@ -98,7 +97,7 @@ release:
   # hotfix tagged on an older commit still reaches `tuzy update`.
   make_latest: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
   footer: |
-    Verify: `tuzy update` checks `checksums.txt.sig` automatically. Manual: `cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.cosign.sig --certificate-identity-regexp 'https://github.com/nhtera/tuzy/' --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt`
+    Verify: `tuzy update` checks `checksums.txt.sig` automatically. Manual: `cosign verify-blob --bundle checksums.txt.sigstore.json --certificate-identity-regexp 'https://github.com/nhtera/tuzy/' --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt`
 
 changelog:
   sort: asc

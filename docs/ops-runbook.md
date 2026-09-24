@@ -17,7 +17,7 @@ Every edge deploy reconnects every agent once (GOAWAY / 1012 → U(0, 3 s) jitte
   protocol, then runs GoReleaser.
 - GoReleaser uploads:
   - the archives, `checksums.txt` and `checksums.txt.sig` (ed25519, `TUZY_RELEASE_KEY`);
-  - cosign files (`checksums.txt.cosign.sig` and `.pem`);
+  - the cosign bundle `checksums.txt.sigstore.json`;
   - the Homebrew cask and the Scoop manifest.
 - The job then verifies the published signature with the key embedded in the CLI.
 - A CLI tag never deploys the edge, and an `edge-v*` tag never publishes a CLI.
