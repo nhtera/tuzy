@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { listDurableObjectIds } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { FrameType } from "../../src/protocol/frames";
-import { bytes, FakeAgent, sha256, visit } from "./fake-agent";
+import { bytes, FakeAgent, sha256, sleep, visit } from "./fake-agent";
 
 describe("connect", () => {
   it("HELLO → READY with the public URL and epoch", async () => {
@@ -17,6 +17,14 @@ describe("connect", () => {
     const { agent } = await FakeAgent.open("nohello");
     agent!.send(new Uint8Array([0x04, 0, 0, 0, 0])); // DRAIN before HELLO
     expect((await agent!.waitClosed()).code).toBe(1002);
+  });
+
+  it("closes 1002 'no HELLO' and resets the object when HELLO never arrives; the next agent connects", async () => {
+    const { agent } = await FakeAgent.open("nohello2");
+    expect(await agent!.waitClosed()).toMatchObject({ code: 1002, reason: "no HELLO" });
+    await sleep(500); // the reset lands 250 ms after the close
+    const b = await FakeAgent.connect("nohello2"); // HELLO → READY on a fresh object instance
+    b.close();
   });
 
   it("answers an unknown proto with GOAWAY upgrade_required", async () => {

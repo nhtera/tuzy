@@ -415,6 +415,12 @@ export class TunnelObject extends DurableObject<Env> {
       if (server.readyState === OPEN && a && !a.hello) {
         diag("no_hello", { name: a.name, inst: a.instanceId.slice(0, 6), epoch: a.epoch, ms: Date.now() - a.connectedAt, agents: this.agentStates(Date.now()) }); // DIAG(no-hello)
         this.dropAgent(server, 1002, "no HELLO");
+        // Seen after deploys under traffic: this object instance wedges (agent frames on new sockets
+        // are never delivered; visitor requests finish only when the next event arrives) until traffic
+        // stops. An accepted socket whose HELLO never arrives is the symptom: reset the object so the
+        // agent's next connect gets a fresh instance. Only the name's owner can open agent sockets.
+        // Delayed so the 1002 close frame reaches the agent first (abort drops sockets as 1006).
+        setTimeout(() => this.ctx.abort("no HELLO within HELLO_TIMEOUT: resetting the tunnel object"), 250);
       }
     }, this.policy.helloTimeoutMs);
     return new Response(null, { status: 101, webSocket: client });
