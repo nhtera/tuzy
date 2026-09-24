@@ -151,6 +151,8 @@ interface ConnHooks {
 class AgentConn implements StreamHost {
   readonly connCredit: Credit;
   readonly streams = new Map<number, HttpStream>();
+  /** When the agent last sent a frame on this connection: any inbound frame proves it is alive. */
+  lastRecvAt = Date.now();
   /** Response bytes received and not yet granted back (connection receive window, §4.1). */
   private readonly recvWindow = new ReceiveWindow(CONN_WINDOW);
   private connUngranted = 0;
@@ -210,7 +212,7 @@ class AgentConn implements StreamHost {
   track(id: number, stream: HttpStream): void {
     this.streams.set(id, stream);
     this.liveness ??= setInterval(() => {
-      if (this.hooks.agentAlive(this.epoch)) return;
+      if (Date.now() - this.lastRecvAt < this.policy.deadSocketMs || this.hooks.agentAlive(this.epoch)) return;
       for (const s of [...this.streams.values()]) s.agentGone();
     }, Math.max(250, Math.min(5_000, this.policy.deadSocketMs / 4)));
   }
@@ -589,6 +591,7 @@ export class TunnelObject extends DurableObject<Env> {
 
   private dispatch(ws: WebSocket, att: AgentAttachment, f: Frame): void {
     const conn = this.conn(ws, att.epoch);
+    conn.lastRecvAt = Date.now();
     switch (f.type) {
       case FrameType.DRAIN:
         att.draining = true;
