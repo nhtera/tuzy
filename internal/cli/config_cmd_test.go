@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/nhtera/tuzy/internal/ui"
 )
 
 func TestConfigCheck(t *testing.T) {
@@ -24,7 +26,7 @@ func TestConfigCheck(t *testing.T) {
 	bad := filepath.Join(dir, "bad.toml")
 	_ = os.WriteFile(bad, []byte("[tunnels.leak]\naddr = \"file:///etc\"\n[tunnels.escape]\naddr = \"file://../..\"\n[tunnels.ftp]\naddr = \"ftp://x\"\n"), 0o600)
 	out, err = run(t, "", "config", "check", "--file", bad)
-	if err == nil || strings.Count(out, "✗") != 3 {
+	if err == nil || strings.Count(out, ui.Cross) != 3 {
 		t.Fatalf("want 3 problems, got %v\n%s", err, out)
 	}
 

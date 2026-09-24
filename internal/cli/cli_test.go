@@ -14,6 +14,7 @@ import (
 	"github.com/zalando/go-keyring"
 
 	"github.com/nhtera/tuzy/internal/auth"
+	"github.com/nhtera/tuzy/internal/ui"
 )
 
 // run executes the CLI with args and stdin, isolated from the real user config and keychain.
@@ -73,7 +74,7 @@ func TestLoginRetriesWrongCodeThenStoresToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("login: %v\n%s", err, out)
 	}
-	if !strings.Contains(out, "didn't work") || !strings.Contains(out, "✓ Logged in") {
+	if !strings.Contains(out, "didn't work") || !strings.Contains(out, ui.Check+" Logged in") {
 		t.Fatalf("output:\n%s", out)
 	}
 }
