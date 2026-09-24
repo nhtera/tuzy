@@ -173,6 +173,12 @@ func runTunnels(ctx context.Context, env *runtimeEnv, specs []tunnelSpec, p *ui.
 				// serving. Begin() (inspector.Store) uses this same name (the session's), so
 				// entries and this TunnelInfo always agree.
 				store.SetTunnel(inspector.TunnelInfo{Name: e.Name, PublicURL: e.URL, Target: spec.target, HostHeader: spec.hostHeader, Transport: transport})
+			case tunnel.EventHostRewrite:
+				// Replays must go out the way live traffic now does.
+				if t, ok := store.Tunnel(e.Name); ok {
+					t.HostHeader = "rewrite"
+					store.SetTunnel(t)
+				}
 			case tunnel.EventRenamed:
 				// Relabel immediately (don't wait for the reconnect's EventOnline) so entries
 				// recorded under the new name — which the next session serves as soon as it is

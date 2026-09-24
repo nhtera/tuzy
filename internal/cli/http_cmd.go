@@ -42,8 +42,8 @@ local app) or a file:// directory to serve (read-only, with directory listing; d
 			if name != "" && !names.Valid(name) {
 				return fmt.Errorf("invalid name %q: 3-32 chars of a-z, 0-9 and single hyphens", name)
 			}
-			if hostHeader != "preserve" && hostHeader != "rewrite" {
-				return errors.New(`--host-header must be "preserve" or "rewrite"`)
+			if hostHeader != "auto" && hostHeader != "preserve" && hostHeader != "rewrite" {
+				return errors.New(`--host-header must be "auto", "preserve" or "rewrite"`)
 			}
 			env, err := resolveEnv(cmd)
 			if err != nil {
@@ -76,7 +76,7 @@ local app) or a file:// directory to serve (read-only, with directory listing; d
 	}
 	cmd.Flags().StringVar(&name, "name", "", "tunnel name (default: your default name)")
 	cmd.Flags().BoolVar(&force, "force", false, "take over the name even if it is live on another device")
-	cmd.Flags().StringVar(&hostHeader, "host-header", "preserve", `Host header sent to the local app: "preserve" (tunnel host) or "rewrite" (local target host)`)
+	cmd.Flags().StringVar(&hostHeader, "host-header", "auto", `Host header sent to the local app: "auto" (tunnel host; switches to the local host if the dev server rejects it, e.g. Vite allowedHosts), "preserve" (always the tunnel host) or "rewrite" (always the local host)`)
 	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "don't print the access log")
 	logs.register(cmd)
 	cmd.Flags().BoolVar(&inspect.disabled, "no-inspect", false, "don't start the local request inspector")

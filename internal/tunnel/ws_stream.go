@@ -314,7 +314,7 @@ func (w *wsStream) dial() (*websocket.Conn, int, error) {
 		name := strings.ToLower(kv[0])
 		switch {
 		case name == "host":
-			if w.s.cfg.hostHeader != "rewrite" {
+			if w.s.cfg.hostMode() != "rewrite" {
 				opts.Host = kv[1]
 			}
 		case name == "sec-websocket-protocol":

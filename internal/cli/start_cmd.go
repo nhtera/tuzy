@@ -75,7 +75,7 @@ func newStartCmd() *cobra.Command {
 				defer closeTransport(transport) // also on early errors before runTunnels
 				hh := t.HostHeader
 				if hh == "" {
-					hh = "preserve"
+					hh = "auto"
 				}
 				specs = append(specs, tunnelSpec{name: n, target: target, display: display, hostHeader: hh, force: force, transport: transport})
 			}

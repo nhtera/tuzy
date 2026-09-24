@@ -26,7 +26,7 @@ type Options struct {
 	Name       string
 	Force      bool
 	Target     *url.URL // e.g. http://localhost:3000
-	HostHeader string   // "preserve" (default) | "rewrite"
+	HostHeader string   // "auto" (default) | "preserve" | "rewrite"
 	UserAgent  string   // e.g. "tuzy/1.0.0 darwin/arm64"
 	OnEvent    func(Event)
 	OnAccess   func(AccessEntry)
@@ -56,6 +56,7 @@ const (
 	EventOnline                        // READY received
 	EventReconnecting                  // connection lost or dial failed; retrying after RetryIn
 	EventRenamed                       // GOAWAY renamed: reconnecting as the new name
+	EventHostRewrite                   // auto Host mode: the dev server rejected the public Host; now rewriting
 )
 
 // Event is reported through Options.OnEvent.
@@ -122,6 +123,13 @@ func NewClient(opts Options) (*Client, error) {
 	if opts.Server == nil || opts.Target == nil || opts.Name == "" {
 		return nil, errors.New("tunnel: server, target and name are required")
 	}
+	switch opts.HostHeader {
+	case "":
+		opts.HostHeader = "auto"
+	case "auto", "preserve", "rewrite":
+	default:
+		return nil, fmt.Errorf("tunnel: host header mode %q (want auto, preserve or rewrite)", opts.HostHeader)
+	}
 	def := func(d *time.Duration, v time.Duration) {
 		if *d == 0 {
 			*d = v
@@ -147,7 +155,7 @@ func NewClient(opts Options) (*Client, error) {
 	if opts.LocalTransport == nil {
 		opts.LocalTransport = NewLocalTransport()
 	}
-	return &Client{
+	c := &Client{
 		opts:       opts,
 		instanceID: NewInstanceID(),
 		backoff:    newBackoff(),
@@ -165,7 +173,10 @@ func NewClient(opts Options) (*Client, error) {
 			recorder:      opts.Recorder,
 			logger:        opts.Logger,
 		},
-	}, nil
+	}
+	// Auto Host mode tells the user once when it switched to rewriting.
+	c.cfg.onHostSwitch = func() { c.emit(Event{Kind: EventHostRewrite, Name: c.Name()}) }
+	return c, nil
 }
 
 // InstanceID is stable for the life of the process (and across reconnects).

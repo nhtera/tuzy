@@ -63,7 +63,7 @@ addr = "3000"
 
 [tunnels.api]
 addr = "8080"
-host_header = "rewrite"   # send Host: localhost:8080 to the app (Vite, Rails host checks)
+host_header = "auto"      # default: public Host, or localhost:8080 if the app rejects it (Vite, Rails)
 ```
 
 ```sh

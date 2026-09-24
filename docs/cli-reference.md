@@ -150,7 +150,7 @@ Examples:
 
 Flags:
       --force                 take over the name even if it is live on another device
-      --host-header string    Host header sent to the local app: "preserve" (tunnel host) or "rewrite" (local target host) (default "preserve")
+      --host-header string    Host header sent to the local app: "auto" (tunnel host; switches to the local host if the dev server rejects it, e.g. Vite allowedHosts), "preserve" (always the tunnel host) or "rewrite" (always the local host) (default "auto")
       --inspect-addr string   inspector address (default 127.0.0.1:4040)
       --log string            write structured logs to stdout, stderr or a file (false: off)
       --log-format string     log format: term, logfmt or json

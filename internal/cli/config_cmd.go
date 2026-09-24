@@ -182,7 +182,7 @@ func configTemplate(project bool) string {
 		return `# tuzy.toml — tunnels for ` + "`tuzy start`" + `
 # [tunnels.my-app]
 # addr = "3000"                 # or "https://localhost:8443", "file://public"
-# host_header = "preserve"      # or "rewrite"
+# host_header = "auto"          # or "preserve" / "rewrite"
 `
 	}
 	return `# tuzy user config

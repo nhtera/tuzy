@@ -105,8 +105,8 @@ func LoadProject(path string) (Project, error) {
 		if t.Addr == "" {
 			return p, fmt.Errorf("%s: tunnels.%s.addr is required", path, name)
 		}
-		if t.HostHeader != "" && t.HostHeader != "preserve" && t.HostHeader != "rewrite" {
-			return p, fmt.Errorf("%s: tunnels.%s.host_header must be \"preserve\" or \"rewrite\"", path, name)
+		if t.HostHeader != "" && t.HostHeader != "auto" && t.HostHeader != "preserve" && t.HostHeader != "rewrite" {
+			return p, fmt.Errorf("%s: tunnels.%s.host_header must be \"auto\", \"preserve\" or \"rewrite\"", path, name)
 		}
 	}
 	return p, nil

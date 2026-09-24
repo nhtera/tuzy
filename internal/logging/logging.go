@@ -155,6 +155,8 @@ func (l *Logger) Event(e tunnel.Event, target string) {
 		l.log.Warn("tunnel.reconnecting", args...)
 	case tunnel.EventRenamed:
 		l.log.Warn("tunnel.renamed", "name", e.Name, "old_name", e.OldName)
+	case tunnel.EventHostRewrite:
+		l.log.Info("tunnel.host_rewrite", "name", e.Name, "reason", "local dev server rejected the public Host")
 	default:
 		l.log.Debug("tunnel.event", "name", e.Name, "kind", fmt.Sprint(e.Kind))
 	}
@@ -170,7 +172,13 @@ func (l *Logger) Access(name string, a tunnel.AccessEntry) {
 	if a.Kind == "ws" {
 		args = append(args, "kind", "ws")
 	}
+	if a.HostRejected {
+		args = append(args, "host_rejected", true) // dev server refused the tunnel Host header
+	}
 	level := slog.LevelInfo
+	if a.HostRejected {
+		level = slog.LevelWarn
+	}
 	if a.Err != "" && a.Err != "cancelled" {
 		args = append(args, "error", a.Err)
 		level = slog.LevelWarn

@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -180,6 +181,7 @@ func (h *httpStream) run() {
 	go h.feed(pw)
 	defer func() { _ = pr.CloseWithError(errStreamDone) }()
 
+	preserved := h.s.cfg.hostMode() == "preserve" // Host policy this request is sent with
 	req, err := h.buildRequest(pr)
 	if err != nil {
 		entry.Status, entry.Err = 502, err.Error()
@@ -199,6 +201,29 @@ func (h *httpStream) run() {
 		h.sendLocalError(fmt.Sprintf("tuzy: could not reach %s\n", h.s.cfg.target))
 		return
 	}
+	// A dev server that refuses the public Host (Vite allowedHosts, webpack "Invalid Host header",
+	// Rails/Django host checks) answers 400/403 before reading the body. Peek at such an answer:
+	// in auto mode switch the tunnel to rewriting the Host and replay bodyless requests at once,
+	// so the visitor never sees the error.
+	var peeked []byte
+	if preserved && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusBadRequest) {
+		peeked, _ = io.ReadAll(io.LimitReader(resp.Body, hostCheckSniffLimit))
+		if isHostCheckRejection(peeked) {
+			if h.s.cfg.hostHeader == "auto" {
+				h.s.cfg.learnHostRewrite()
+				if req.Body == http.NoBody {
+					if retry, rerr := h.buildRequest(http.NoBody); rerr == nil {
+						if r2, rerr := h.s.cfg.transport.RoundTrip(retry); rerr == nil {
+							_ = resp.Body.Close()
+							resp, peeked = r2, nil
+						}
+					}
+				}
+			} else {
+				entry.HostRejected = true // explicit preserve: the CLI explains the options
+			}
+		}
+	}
 	defer func() { _ = resp.Body.Close() }()
 	entry.Status = resp.StatusCode
 	go h.watchEarlyResponse(pr)
@@ -208,7 +233,11 @@ func (h *httpStream) run() {
 	if err := h.s.sendJSON(h.ctx, protocol.ResHead, h.id, protocol.ResHeadMsg{Status: resp.StatusCode, Headers: headers}); err != nil {
 		return
 	}
-	n, err := h.s.sendBody(h.ctx, h.id, h.sendCredit, io.TeeReader(resp.Body, recorderWriter{h.rec}))
+	body := io.Reader(resp.Body)
+	if peeked != nil { // relay the peeked prefix, then the rest
+		body = io.MultiReader(bytes.NewReader(peeked), resp.Body)
+	}
+	n, err := h.s.sendBody(h.ctx, h.id, h.sendCredit, io.TeeReader(body, recorderWriter{h.rec}))
 	entry.Bytes = n
 	switch {
 	case err == nil:
@@ -275,7 +304,7 @@ func targetURL(target *url.URL, requestURI string) (*url.URL, error) {
 // length is not known upfront: bodyLen -1 tells BuildLocalRequest to infer it from the visitor's
 // headers, same as the live path always has).
 func (h *httpStream) buildRequest(body io.Reader) (*http.Request, error) {
-	return BuildLocalRequest(h.ctx, h.s.cfg.target, h.s.cfg.hostHeader, h.head.Method, h.head.Path, h.head.Headers, body, -1)
+	return BuildLocalRequest(h.ctx, h.s.cfg.target, h.s.cfg.hostMode(), h.head.Method, h.head.Path, h.head.Headers, body, -1)
 }
 
 // BuildLocalRequest builds the *http.Request sent to a local target, shared by the live relay path

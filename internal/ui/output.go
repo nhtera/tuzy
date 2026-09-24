@@ -4,6 +4,7 @@ package ui
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -19,6 +20,8 @@ type Printer struct {
 	quiet  bool // suppress the access log
 	color  bool
 	server string // printed when not the default server
+
+	hostHinted bool // the dev-server Host hint was shown
 }
 
 // New returns a printer for w. Colors are used only on a terminal without NO_COLOR.
@@ -72,11 +75,30 @@ func (p *Printer) Event(e tunnel.Event, target string) {
 		p.line("%s %s: reconnecting in %s%s", p.paint(yellow, "○"), e.Name, e.RetryIn.Round(10*time.Millisecond), reason)
 	case tunnel.EventRenamed:
 		p.line("%s %s was renamed to %s; update tuzy.toml if it lists the old name", p.paint(yellow, "↻"), e.OldName, e.Name)
+	case tunnel.EventHostRewrite:
+		p.line("%s %s: your dev server only accepts local hosts, so requests now use Host: %s (the public host is in X-Forwarded-Host)",
+			p.paint(yellow, "↻"), e.Name, hostOf(target))
 	}
 }
 
-// Access prints one access-log line unless quiet.
+// HostCheckHint explains a local dev server rejecting the tunnel's Host header.
+const HostCheckHint = `your local dev server rejects the tunnel host (Host: <name>.tuzy.dev) and --host-header is
+  set to preserve. Either drop the flag (the default "auto" switches to the local host by itself), or
+  allow tuzy hosts in the dev server, e.g. Vite: server: { allowedHosts: ['.tuzy.dev'] },
+  webpack: devServer.allowedHosts, Rails: config.hosts << ".tuzy.dev", Django: ALLOWED_HOSTS`
+
+// Access prints one access-log line unless quiet. A dev-server Host rejection always gets a
+// one-time hint (also when quiet: it's why the page is broken).
 func (p *Printer) Access(name string, a tunnel.AccessEntry) {
+	if a.HostRejected {
+		p.mu.Lock()
+		first := !p.hostHinted
+		p.hostHinted = true
+		p.mu.Unlock()
+		if first {
+			p.line("%s %s", p.paint(yellow, "!"), HostCheckHint)
+		}
+	}
 	if p.quiet {
 		return
 	}
@@ -113,4 +135,12 @@ func sanitize(s string) string {
 		}
 		return r
 	}, s)
+}
+
+// hostOf is the host[:port] of a target URL string (for messages).
+func hostOf(target string) string {
+	if u, err := url.Parse(target); err == nil && u.Host != "" {
+		return u.Host
+	}
+	return target
 }

@@ -18,10 +18,14 @@ WebSocket connection time does not count toward the long-stream allowance.
 
 ## FAQ
 
-**My dev server says "Invalid Host header" (Vite, webpack, Rails, Django).**
-Visitors send `Host: <name>.tuzy.dev`. Either allow it (Vite: `server.allowedHosts:
-['.tuzy.dev']`; Rails: `config.hosts << ".tuzy.dev"`), or run with `--host-header rewrite` to
-send your local address instead.
+**Dev servers with a host check (Vite, webpack, Rails, Django) work out of the box.**
+Visitors send `Host: <name>.tuzy.dev`. By default (`--host-header auto`) tuzy passes it through.
+The first time your dev server rejects it ("Blocked request. This host … is not allowed", "Invalid
+Host header"), tuzy switches that tunnel to `Host: localhost:<port>` and retries the request, so the
+page loads. The public host is always in `X-Forwarded-Host`.
+- `--host-header rewrite` always sends the local host.
+- `--host-header preserve` always sends the public host (for apps that need it, such as multi-tenant
+  routing); then allow `.tuzy.dev` in the dev server's config.
 
 **Browsers see a "You are about to visit a tunnel" page.**
 New accounts' tunnels show it once per browser every 7 days, as phishing protection.

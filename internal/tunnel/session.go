@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -30,12 +31,19 @@ type AccessEntry struct {
 	Duration time.Duration
 	RemoteIP string
 	Err      string
+	// HostRejected: the local dev server refused the tunnel Host header (e.g. Vite allowedHosts).
+	HostRejected bool
 }
 
 // sessionConfig is shared by every stream of a session.
 type sessionConfig struct {
-	target        *url.URL // e.g. http://localhost:3000
-	hostHeader    string   // "preserve" (default) | "rewrite"
+	target     *url.URL // e.g. http://localhost:3000
+	hostHeader string   // "auto" (default) | "preserve" | "rewrite"
+	// hostRewrite: in auto mode, a local dev server rejected the public Host (Vite allowedHosts,
+	// webpack "Invalid Host header", …) so requests now carry the target's host. Shared by every
+	// session of the client, so it survives reconnects.
+	hostRewrite   atomic.Bool
+	onHostSwitch  func() // called once when auto mode switches to rewrite
 	transport     http.RoundTripper
 	pingInterval  time.Duration
 	pongTimeout   time.Duration
@@ -619,5 +627,20 @@ func (s *session) flushConn() {
 	s.mu.Unlock()
 	if grant > 0 {
 		s.sendCtrl(protocol.EncodeU32(protocol.Window, 0, uint32(grant)))
+	}
+}
+
+// hostMode is the Host policy for the next local request: "rewrite" or "preserve".
+func (c *sessionConfig) hostMode() string {
+	if c.hostHeader == "rewrite" || (c.hostHeader == "auto" && c.hostRewrite.Load()) {
+		return "rewrite"
+	}
+	return "preserve"
+}
+
+// learnHostRewrite switches auto mode to rewrite (once).
+func (c *sessionConfig) learnHostRewrite() {
+	if c.hostHeader == "auto" && c.hostRewrite.CompareAndSwap(false, true) && c.onHostSwitch != nil {
+		c.onHostSwitch()
 	}
 }

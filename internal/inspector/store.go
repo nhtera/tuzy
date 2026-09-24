@@ -138,7 +138,7 @@ type TunnelInfo struct {
 	Name       string
 	PublicURL  string
 	Target     *url.URL
-	HostHeader string // "preserve" | "rewrite"
+	HostHeader string // "auto" | "preserve" | "rewrite" (auto becomes rewrite after a switch)
 	// Transport is the tunnel's own local transport (shared default for http, a per-target TLS
 	// clone for https, a fileserver.RoundTripper for file://): replay uses it instead of the
 	// server's default so a replayed request reaches the same place the live traffic did. Nil
