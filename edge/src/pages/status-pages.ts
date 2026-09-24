@@ -2,6 +2,7 @@
  * Minimal HTML status pages served to tunnel visitors by the edge itself (not the user's app).
  * Every page is marked `x-tuzy-edge: 1` so users and the CLI can tell edge errors from app errors.
  */
+import { BASE_CSS, CARD_CSS, FAVICON } from "./site-style";
 
 export type StatusPage = "not_found" | "offline" | "draining" | "timeout" | "busy" | "bad_gateway" | "suspended" | "header_too_large" | "rate_limited";
 
@@ -22,7 +23,9 @@ const escapeHtml = (s: string) =>
 
 export function statusPage(page: StatusPage, detail?: string): Response {
   const p = PAGES[page];
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${p.title}</title><style>body{font:16px/1.5 system-ui,sans-serif;max-width:36rem;margin:15vh auto;padding:0 1rem;color:#222}@media(prefers-color-scheme:dark){body{background:#111;color:#ddd}}small{color:#888}</style></head><body><h1>${p.title}</h1><p>${p.body}</p>${detail ? `<p><small>${escapeHtml(detail)}</small></p>` : ""}<p><small>tuzy · ${p.status}</small></p></body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${p.title}</title>${FAVICON}<style>${BASE_CSS}
+${CARD_CSS}
+.code{font:700 .85rem/1 var(--mono);color:var(--faint);margin:0 0 .8rem}</style></head><body><main class="card"><span class="brand">tuzy</span><p class="code">${p.status}</p><h1>${p.title}</h1><p>${p.body}</p>${detail ? `<p class="note">${escapeHtml(detail)}</p>` : ""}<p class="meta">Served by the tuzy edge, not by the tunnel's app.</p></main></body></html>`;
   return new Response(html, {
     status: p.status,
     headers: {

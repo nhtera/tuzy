@@ -441,5 +441,12 @@ describe("site pages", () => {
     expect(sec).toMatch(/^Contact: mailto:security@tuzy\.dev$/m);
     expect(sec).toMatch(/^Expires: \d{4}-\d\d-\d\dT/m);
     expect((await get("/abuse.js")).headers.get("content-type")).toContain("javascript");
+    const site = await get("/site.js");
+    expect(site.headers.get("content-type")).toContain("javascript");
+    expect(await site.text()).toContain("clipboard");
+    const landing = await (await get("/")).text();
+    expect(landing).toContain('src="/site.js"');
+    expect(landing).toContain("accounts younger than 7 days");
+    expect(landing).not.toMatch(/[\u2013\u2014]/); // no en/em dashes in site copy
   });
 });

@@ -9,9 +9,9 @@ const UPDATED = "2026-09-24";
 
 export function aupPage(): Response {
   return page(
-    "Acceptable use — tuzy",
+    "Acceptable use | tuzy",
     `<h1>Acceptable use policy</h1><p><small>Last updated ${UPDATED}</small></p>
-<p>tuzy exposes services running on your own computer. You are responsible for everything served through your tunnels. You must not use tuzy to:</p>
+<p class="lede">tuzy exposes services running on your own computer. You are responsible for everything served through your tunnels. You must not use tuzy to:</p>
 <ul>
 <li>phish, impersonate a brand, bank, email provider or any other service, or collect credentials or payment details that aren't for your own service;</li>
 <li>distribute malware, run command-and-control servers, or host exploit kits;</li>
@@ -31,14 +31,15 @@ export function aupPage(): Response {
 </ul>
 <h2>Limits</h2>
 <p>Each account has up to 10 names, a request-rate limit per tunnel, and a monthly allowance of long-running streams (50 hours of streams past their first 5 minutes). Limits may change to keep the service free and healthy.</p>`,
+    { path: "/aup", description: "What you may and may not serve through tuzy tunnels, and when browsers see a warning page." },
   );
 }
 
 export function termsPage(): Response {
   return page(
-    "Terms — tuzy",
+    "Terms | tuzy",
     `<h1>Terms of service</h1><p><small>Last updated ${UPDATED}</small></p>
-<p>By creating an account or running the tuzy CLI you agree to these terms and to the <a href="/aup">acceptable use policy</a>.</p>
+<p class="lede">By creating an account or running the tuzy CLI you agree to these terms and to the <a href="/aup">acceptable use policy</a>.</p>
 <h2>The service</h2>
 <p>tuzy is provided free of charge, as is, without warranty of any kind, and may change, be limited or be discontinued at any time. We don't promise any uptime or that data will be delivered.</p>
 <h2>Your account</h2>
@@ -55,7 +56,7 @@ export function termsPage(): Response {
 
 export function privacyPage(): Response {
   return page(
-    "Privacy — tuzy",
+    "Privacy | tuzy",
     `<h1>Privacy policy</h1><p><small>Last updated ${UPDATED}</small></p>
 <h2>What we store</h2>
 <ul>
