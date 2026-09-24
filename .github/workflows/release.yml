@@ -29,7 +29,7 @@ jobs:
           echo "CLI proto $proto, edge $min–$max"
           test -n "$proto" && test -n "$max" && test "$proto" -ge "$min" && test "$proto" -le "$max"
       - run: go test -race ./...
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.2
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
