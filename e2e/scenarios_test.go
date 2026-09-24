@@ -752,3 +752,46 @@ func TestLongStreamBudgetCut(t *testing.T) {
 		t.Fatalf("expected the edge to cut the stream around LONG_STREAM_AFTER_SECONDS=300s once at budget, got %s", elapsed)
 	}
 }
+
+// --- edge redeploy: agents reconnect after the Durable Object restarts -------------------------
+
+// TestEdgeReloadReconnect hot-reloads `wrangler dev` (new script → every Durable Object restarts,
+// like a production deploy) while a tunnel is live, and requires the SAME agent process to come
+// back and keep serving. Regression: after a deploy an agent got stuck in a "no HELLO" loop until
+// it was restarted.
+func TestEdgeReloadReconnect(t *testing.T) {
+	u := h.seedUser(t, "reload", seedOpts{})
+	name := uniqueName("reload")
+	agent := h.startCLI(t, "", u.Token, "http", fmt.Sprintf("127.0.0.1:%d", h.appPort), "--name", name, "--no-inspect")
+	h.waitOnline(t, name, onlineTimeout)
+
+	// Each reload needs a different bundle (wrangler skips identical rebuilds): append a comment.
+	touched := filepath.Join(h.edgeDir, "src", "index.ts")
+	orig, err := os.ReadFile(touched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.WriteFile(touched, orig, 0o644) })
+	for i := range 4 {
+		before := strings.Count(agent.String(), "● online")
+		if err := os.WriteFile(touched, fmt.Appendf(bytes.Clone(orig), "\n// e2e reload %d\n", i+1), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// The reload drops the agent socket; wait for a fresh "online", then for real traffic.
+		if !waitFor(t, 60*time.Second, 200*time.Millisecond, func() bool { return strings.Count(agent.String(), "● online") > before }) {
+			t.Fatalf("reload %d: agent did not reconnect within 60s\n%s", i+1, agent.String())
+		}
+		h.waitOnline(t, name, onlineTimeout)
+		// A request right after the reconnect (the stuck case followed a request).
+		req := h.newVisitorRequest(t, http.MethodGet, h.tunnelHost(name), "/health", nil)
+		resp, err := h.client.Do(req)
+		if err != nil || resp.StatusCode != http.StatusOK {
+			t.Fatalf("reload %d: request after reconnect: %v %v\n%s", i+1, err, resp, agent.String())
+		}
+		_ = resp.Body.Close()
+		if strings.Contains(agent.String(), "no HELLO") {
+			t.Fatalf("reload %d: agent hit a no-HELLO loop\n%s", i+1, agent.String())
+		}
+	}
+	t.Logf("agent output:\n%s", agent.String())
+}
