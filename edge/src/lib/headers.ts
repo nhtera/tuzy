@@ -79,6 +79,19 @@ export function stripEdgeInternal(headers: Headers): void {
   }
 }
 
+/**
+ * Cloudflare's front line rewrites the visitor's `Accept-Encoding` (to "gzip, br") before the
+ * Worker runs and keeps the original in `request.cf.clientAcceptEncoding`. Put the original back:
+ * signed requests (AWS SigV4 from aws-sdk-go-v2 signs `Accept-Encoding: identity`) must reach the
+ * app unchanged. No `cf` (local dev) or no original recorded: left as is.
+ */
+export function restoreAcceptEncoding(headers: Headers, cf: { clientAcceptEncoding?: string } | undefined): void {
+  const original = cf?.clientAcceptEncoding;
+  if (typeof original !== "string") return;
+  if (original === "") headers.delete("accept-encoding");
+  else headers.set("accept-encoding", original);
+}
+
 /** Builds the REQ_HEAD header list for the agent. `host` is the visitor Host header. */
 export function visitorToAgentHeaders(headers: Headers, meta: VisitorMeta): HeaderPairs {
   const listed = connectionListed(headers);

@@ -9,7 +9,7 @@
 import { hasConnectedMarker } from "./lib/connected-marker";
 import { nowSec } from "./lib/ids";
 import { CONTINUE_PATH, isContinueFromInterstitial, sanitizeTo, setCookieHeader, signCookie } from "./lib/interstitial";
-import { META_CONTINENT, META_PROTO, META_REMOTE_IP, META_SKIP_WARNING, stripEdgeInternal } from "./lib/headers";
+import { META_CONTINENT, META_PROTO, META_REMOTE_IP, META_SKIP_WARNING, restoreAcceptEncoding, stripEdgeInternal } from "./lib/headers";
 import { statusPage } from "./pages/status-pages";
 
 export const RESERVED_PREFIX = "/__tuzy/";
@@ -31,6 +31,7 @@ export async function proxyToTunnel(request: Request, env: Env, ctx: ExecutionCo
   const skipWarning = request.headers.has("tuzy-skip-warning"); // any value, like ngrok-skip-browser-warning
   const headers = new Headers(request.headers);
   stripEdgeInternal(headers);
+  restoreAcceptEncoding(headers, request.cf as { clientAcceptEncoding?: string } | undefined);
   if (skipWarning) headers.set(META_SKIP_WARNING, "1");
   headers.set(META_REMOTE_IP, remoteIp);
   headers.set(META_CONTINENT, continent);

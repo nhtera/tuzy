@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentToVisitorHeaders, stripEdgeInternal, stripTuzyCookies, visitorToAgentHeaders } from "../../src/lib/headers";
+import { agentToVisitorHeaders, restoreAcceptEncoding, stripEdgeInternal, stripTuzyCookies, visitorToAgentHeaders } from "../../src/lib/headers";
 
 const meta = { remoteIp: "203.0.113.9", continent: "EU", proto: "https" };
 
@@ -104,5 +104,26 @@ describe("agentToVisitorHeaders", () => {
   it("drops invalid header values instead of throwing", () => {
     const h = agentToVisitorHeaders([["x-bad", "a\nb"], ["x-ok", "1"]], 200);
     expect(h.get("x-ok")).toBe("1");
+  });
+});
+
+describe("restoreAcceptEncoding", () => {
+  const rewritten = () => new Headers({ "accept-encoding": "gzip, br" });
+  it("puts back the visitor's original value (SigV4 signs it)", () => {
+    const h = rewritten();
+    restoreAcceptEncoding(h, { clientAcceptEncoding: "identity" });
+    expect(h.get("accept-encoding")).toBe("identity");
+  });
+  it("drops the header when the visitor sent an empty one", () => {
+    const h = rewritten();
+    restoreAcceptEncoding(h, { clientAcceptEncoding: "" });
+    expect(h.has("accept-encoding")).toBe(false);
+  });
+  it("leaves it alone without cf or without a recorded original", () => {
+    for (const cf of [undefined, {}]) {
+      const h = rewritten();
+      restoreAcceptEncoding(h, cf);
+      expect(h.get("accept-encoding")).toBe("gzip, br");
+    }
   });
 });
