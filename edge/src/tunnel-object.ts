@@ -56,13 +56,6 @@ export interface ConnectMeta {
   gen?: string;
 }
 
-// DIAG(no-hello): temporary structured logs for the post-deploy "no HELLO" investigation. Remove after.
-// Off unless the DIAG_LOGS var is "1" (vitest-pool-workers hangs at teardown on DO console output).
-let diagEnabled = false;
-function diag(event: string, fields: Record<string, unknown>): void {
-  if (diagEnabled) console.log(JSON.stringify({ diag: event, ...fields }));
-}
-
 export interface AgentAttachment {
   role: "agent";
   epoch: number;
@@ -211,9 +204,8 @@ class AgentConn implements StreamHost {
   /**
    * Registers a stream. While any stream is open, one timer per connection checks that the agent
    * is alive (socket open, heartbeat within DEAD_SOCKET_SECONDS) and fails every stream (502) when
-   * it is not. After a code update the runtime can terminate the agent socket without a close
-   * event; streams waiting out HEAD_TIMEOUT on it kept the old object instance alive, and the
-   * agent's frames on its new socket were lost meanwhile ("no HELLO" until traffic stopped).
+   * it is not, instead of letting visitors wait out HEAD_TIMEOUT (300 s) on an agent that went
+   * silent (e.g. its socket was dropped without a close event, which happens around deploys).
    */
   track(id: number, stream: HttpStream): void {
     this.streams.set(id, stream);
@@ -282,7 +274,6 @@ export class TunnelObject extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.policy = edgePolicy(env);
-    diagEnabled = (env as { DIAG_LOGS?: string }).DIAG_LOGS === "1"; // DIAG(no-hello)
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
     void ctx.blockConcurrencyWhile(async () => {
       const s = await ctx.storage.get<number | string | boolean>(["epoch", "name", "suspended", "trusted", "gen", "marker"]);
@@ -365,7 +356,6 @@ export class TunnelObject extends DurableObject<Env> {
 
     const now = Date.now();
     const current = this.currentAgent();
-    diag("connect", { name: meta.name, inst: meta.instanceId.slice(0, 6), epoch: this.epoch + 1, agents: this.agentStates(now) }); // DIAG(no-hello)
     if (current) {
       const { ws, att } = current;
       if (att.instanceId === meta.instanceId) {
@@ -413,7 +403,6 @@ export class TunnelObject extends DurableObject<Env> {
     setTimeout(() => {
       const a = server.deserializeAttachment() as AgentAttachment | null;
       if (server.readyState === OPEN && a && !a.hello) {
-        diag("no_hello", { name: a.name, inst: a.instanceId.slice(0, 6), epoch: a.epoch, ms: Date.now() - a.connectedAt, agents: this.agentStates(Date.now()) }); // DIAG(no-hello)
         this.dropAgent(server, 1002, "no HELLO");
         // Seen after deploys under traffic: this object instance wedges (agent frames on new sockets
         // are never delivered; visitor requests finish only when the next event arrives) until traffic
@@ -504,8 +493,6 @@ export class TunnelObject extends DurableObject<Env> {
 
   override async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     const att = ws.deserializeAttachment() as AgentAttachment | VisitorAttachment | null;
-    if (!att) diag("ws_message_no_attachment", { tags: this.ctx.getTags(ws) }); // DIAG(no-hello)
-    if (att?.role === "agent" && !att.hello) diag("first_frame", { name: att.name, epoch: att.epoch, ms: Date.now() - att.connectedAt }); // DIAG(no-hello)
     if (att?.role === "agent") return this.onAgentMessage(ws, att, message);
     if (att?.role === "visitor") return this.onVisitorMessage(ws, att, message);
   }
@@ -520,7 +507,6 @@ export class TunnelObject extends DurableObject<Env> {
 
   private onSocketGone(ws: WebSocket, code: number, reason: string): void {
     const att = ws.deserializeAttachment() as AgentAttachment | VisitorAttachment | null;
-    if (att?.role === "agent") diag("agent_gone", { name: att.name, epoch: att.epoch, hello: att.hello, code, reason }); // DIAG(no-hello)
     if (att?.role === "agent") {
       closeSocket(ws, code, reason); // complete the close handshake
       this.agentGone(ws, att.epoch);
@@ -755,15 +741,6 @@ export class TunnelObject extends DurableObject<Env> {
   // ───────────────────────────── agent lifecycle helpers ─────────────────────────────
 
   /** Current agent = the OPEN agent socket with the latest epoch. */
-  /** DIAG(no-hello): every agent socket's epoch, state and pong age. */
-  private agentStates(now: number): unknown[] {
-    return this.ctx.getWebSockets("agent").map((ws) => {
-      const a = ws.deserializeAttachment() as AgentAttachment | null;
-      const pong = this.ctx.getWebSocketAutoResponseTimestamp(ws);
-      return { epoch: a?.epoch, inst: a?.instanceId.slice(0, 6), hello: a?.hello, rs: ws.readyState, ageMs: a ? now - a.connectedAt : null, pongAgoMs: pong ? now - pong.getTime() : null };
-    });
-  }
-
   private currentAgent(): { ws: WebSocket; att: AgentAttachment } | null {
     let best: { ws: WebSocket; att: AgentAttachment } | null = null;
     for (const ws of this.ctx.getWebSockets("agent")) {
