@@ -126,3 +126,41 @@ _Not run yet._
 - **Zone settings:** keep Bot Fight Mode off. Make sure Browser Integrity Check and Security
   Level never challenge webhooks or the API on `*.tuzy.dev`: turn them off, or add a WAF skip
   rule.
+
+## Platform notes
+
+### Wrangler config
+- **One config file:** `edge/wrangler.jsonc`, with **no named environments** (no staging: local `wrangler dev` + production only).
+- **Worker:** named `tuzy`, with routes `tuzy.dev/*` and `*.tuzy.dev/*` (zone `tuzy.dev`).
+- **`compatibility_date`:** capped by the workerd bundled with `@cloudflare/vitest-pool-workers` (currently `2026-08-22`). Raise it only after upgrading the pool.
+
+### Host routing under `wrangler dev`
+- **The problem:** when `routes` are configured, `wrangler dev` rewrites the request URL and `Host` to the first route's zone. That breaks Host-based tunnel routing. `--local-upstream`, `--host` and `--routes` don't help.
+- **The workaround:** `npm run dev` runs `scripts/gen-dev-config.mjs`. It writes the gitignored `edge/wrangler.dev.gen.jsonc`: the same config without `routes`, with `BASE_DOMAIN=localhost`. `wrangler.jsonc` stays the single source of truth.
+- **The rule:** edge code reads the tunnel name from the **`Host` header** (`edge/src/lib/host.ts`), never from `request.url`.
+
+### Email Service
+- **Sending domain:** `tuzy.dev` is onboarded, which added the `cf-bounce` MX/SPF records, DKIM `cf-bounce`, and `_dmarc` with `p=reject`.
+- **Recipients:** sending to arbitrary recipients needs an onboarded domain **and** Workers Paid.
+- **Binding:** `send_email` is restricted to the sender `login@tuzy.dev`.
+- **Quota:** 1,000 a day. 3,000 a month are included, then $0.35 per 1,000 (not a hard cap: `DAILY_SEND_BUDGET` is the ceiling).
+- **Tested:** delivery to Gmail went to the Inbox, so DMARC alignment passes.
+
+### TLS
+- **Hosts:** `https://tuzy.dev` is the apex and `https://<name>.tuzy.dev` a tunnel.
+- **Redirects and versions:** `http://` → 301 to https, and TLS below 1.2 is refused.
+- **Two-level hosts** (`a.b.tuzy.dev`) fail TLS: Universal SSL covers one wildcard level, which matches the one-label name rule.
+
+### Cloudflare account and repo checklist
+- [x] Domain `tuzy.dev` at Porkbun (expires 2027-09-23, transfer lock on). Zone on Cloudflare, proxied `AAAA @/* 100::`.
+- [ ] Porkbun auto-renew on. Extend to > 2 years before applying to the Public Suffix List.
+- [x] Always Use HTTPS, minimum TLS 1.2, WebSockets on. Bot Fight Mode **off**.
+- [ ] Browser Integrity Check / Security Level: they must not challenge webhooks or the API (turn them off, or add a WAF skip for `*.tuzy.dev`).
+- [x] Workers Paid (startup credits). [ ] Usage and billing notifications at 50 %.
+- [x] Email Service + DMARC. Email Routing: `abuse@`, `security@`, `dmarc@` → admin inbox.
+- [x] GitHub `nhtera/tuzy` (public):
+  - environments `production` (owner approval) and `release`;
+  - a "release tags" ruleset;
+  - secrets `CLOUDFLARE_API_TOKEN` (scoped deploy token), `CLOUDFLARE_ACCOUNT_ID`, `TAP_GITHUB_TOKEN` and `TUZY_RELEASE_KEY`.
+- [x] `nhtera/homebrew-tap` (cask in `Casks/`) and `nhtera/scoop-bucket`.
+- [ ] Search Console domain property; external uptime probe on `/api/v1/health`.
