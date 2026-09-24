@@ -5,6 +5,7 @@ import { defineConfig } from "vitest/config";
 // (PROTOCOL.md §2.2 policy values are vars precisely so tests don't burn wall-clock minutes).
 const testBindings = {
   EMAIL_DRIVER: "log",
+  DIAG_LOGS: "0", // DIAG(no-hello): DO console output hangs the pool at teardown
   ALLOW_LOG_EMAIL: "1",
   ADMIN_EMAIL: "admin@example.test",
   DAILY_SEND_BUDGET: "900",

@@ -16,6 +16,7 @@
   ],
   "vars": {
     "BASE_DOMAIN": "tuzy.dev",
+    "DIAG_LOGS": "1", // DIAG(no-hello): temporary; remove with the diag() calls
     // Edge policy defaults (PROTOCOL.md §2.2), in seconds.
     "HEAD_TIMEOUT_SECONDS": "300",
     "MAX_STREAM_SECONDS": "3600",
@@ -55,7 +56,8 @@
   "triggers": { "crons": ["*/5 * * * *", "0 3 * * *"] },
   // Invocation logs off: one log per visitor request would exceed the 20M/mo included events at
   // launch scale and retain visitor URLs. console.* logs (errors, admin/audit events) stay on.
-  "observability": { "enabled": true, "head_sampling_rate": 0.1, "logs": { "invocation_logs": false } },
+  // DIAG(no-hello): full sampling during the investigation; restore 0.1 / invocation_logs false after.
+  "observability": { "enabled": true, "head_sampling_rate": 1, "logs": { "invocation_logs": true } },
   // scripts/install.sh and install.ps1 are bundled as text modules and served at
   // https://tuzy.dev/install.sh and /install.ps1.
   "rules": [{ "type": "Text", "globs": ["**/*.sh", "**/*.ps1"], "fallthrough": true }],
