@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasValidCookie, sanitizeTo, signCookie, wantsInterstitial, COOKIE_MAX_AGE } from "../../src/lib/interstitial";
+import { hasValidCookie, isContinueFromInterstitial, sanitizeTo, signCookie, wantsInterstitial, COOKIE_MAX_AGE } from "../../src/lib/interstitial";
 import { reportedName } from "../../src/api/abuse-routes";
 import { reporterPrefix } from "../../src/lib/abuse";
 
@@ -20,6 +20,24 @@ describe("interstitial decision", () => {
     ["fetch metadata without dest", "GET", { "sec-fetch-mode": "cors", accept: "text/html" }, false],
   ])("%s", (_n, method, headers, want) => {
     expect(wantsInterstitial(method as string, h(headers as Record<string, string>))).toBe(want);
+  });
+});
+
+describe("continue click", () => {
+  const origin = "https://a.tuzy.dev";
+  const nav = { "sec-fetch-site": "same-origin", "sec-fetch-dest": "document", "sec-fetch-mode": "navigate" };
+  it.each([
+    ["Chrome/Firefox click", { ...nav, "sec-fetch-user": "?1" }, true],
+    ["WebKit click (no sec-fetch-user)", nav, true],
+    ["explicitly not user-activated", { ...nav, "sec-fetch-user": "?0" }, false],
+    ["cross-site link", { ...nav, "sec-fetch-site": "cross-site" }, false],
+    ["sibling tunnel link", { ...nav, "sec-fetch-site": "same-site" }, false],
+    ["same-origin image", { ...nav, "sec-fetch-dest": "image" }, false],
+    ["legacy same-origin referer", { referer: "https://a.tuzy.dev/x" }, true],
+    ["legacy foreign referer", { referer: "https://b.tuzy.dev/x" }, false],
+    ["no metadata, no referer", {}, false],
+  ])("%s", (_n, headers, want) => {
+    expect(isContinueFromInterstitial(h(headers as Record<string, string>), origin)).toBe(want);
   });
 });
 

@@ -66,14 +66,17 @@ export async function hasValidCookie(secret: string, host: string, cookieHeader:
 }
 
 /**
- * The continue click must come from the interstitial itself (same origin, user-activated): a
+ * The continue click must come from the interstitial itself (a same-origin document navigation): a
  * cross-site link or a sibling tunnel's <img> to /__tuzy/continue must not mint the cookie.
+ * `sec-fetch-user` is not required: WebKit (Safari and every iOS browser) never sends it, and a
+ * same-origin document can only exist on this host after the interstitial was passed anyway.
  * Browsers without fetch metadata fall back to a same-origin Referer (the interstitial sends it).
  */
 export function isContinueFromInterstitial(headers: Headers, origin: string): boolean {
   const site = headers.get("sec-fetch-site");
   if (site !== null) {
-    return site === "same-origin" && headers.get("sec-fetch-dest") === "document" && headers.get("sec-fetch-user") === "?1";
+    const user = headers.get("sec-fetch-user");
+    return site === "same-origin" && headers.get("sec-fetch-dest") === "document" && (user === null || user === "?1");
   }
   const ref = headers.get("referer");
   if (!ref) return false;
