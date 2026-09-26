@@ -7,7 +7,7 @@
 <title>Local service unreachable · tuzy</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a7a4b'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='ui-monospace,Menlo,monospace' font-size='21' font-weight='700' fill='%23fff'%3Et%3C/text%3E%3C/svg%3E">
 <style>
-/* A subset of the design tokens in edge/src/pages/site-style.ts (keep in sync), plus agent-only --bad* error tokens. */
+/* A subset of the design tokens in edge/src/pages/site-style.ts and the layout of the edge status pages (keep in sync). */
 :root{color-scheme:light dark;
 --bg:#fbfbfc;--surface:#fff;--surface-2:#f3f4f6;--border:#e4e4e7;--border-strong:#d4d4d8;
 --text:#18181b;--muted:#52525b;--faint:#6b6b75;--accent:#0a7a4b;--accent-hover:#086a41;
@@ -32,7 +32,7 @@ main{width:100%;max-width:42rem}
 .brand{display:inline-flex;align-items:center;gap:.45rem;font:700 .95rem/1 var(--mono);color:var(--text);margin-bottom:1.6rem}
 .brand::before{content:"";width:.6rem;height:.6rem;border-radius:3px;background:var(--accent)}
 
-/* Request path: Visitor → tuzy edge → tuzy agent ✕ Your service */
+/* Request path: Visitor → tuzy edge → tuzy agent ✕ Your service (same markup as edge/src/pages/request-path.ts) */
 .path{list-style:none;margin:0 0 1.8rem;padding:0;display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
 .path li{position:relative;display:flex;flex-direction:column;align-items:center;gap:.55rem;color:var(--accent);font:600 .85rem/1.25 var(--sans)}
 .path svg{width:2rem;height:2rem;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
@@ -46,7 +46,7 @@ main{width:100%;max-width:42rem}
 .path .x svg{width:.8rem;height:.8rem;stroke-width:2.6}
 
 .alert{background:var(--surface);border:1px solid var(--bad-line);border-left:4px solid var(--bad);border-radius:12px;padding:clamp(1.1rem,4vw,1.6rem);box-shadow:var(--shadow);margin:0 0 2rem}
-.alert .code{font:700 .8rem/1 var(--mono);color:var(--bad);letter-spacing:.02em;margin:0 0 .7rem}
+.alert .code{font:700 .8rem/1.3 var(--mono);color:var(--bad);letter-spacing:.02em;margin:0 0 .7rem}
 .alert h1{font-size:clamp(1.35rem,4.5vw,1.7rem)}
 .alert pre{margin:0;padding:.75rem .9rem;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font:.85rem/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
 section{margin:0 0 1.6rem}
@@ -68,7 +68,7 @@ section p{color:var(--muted)}
 </ol>
 
 <div class="alert" role="alert">
-<p class="code">502 · LOCAL SERVICE UNREACHABLE</p>
+<p class="code">502 · {{.Code}}</p>
 <h1>The tunnel is up, but the app behind it isn't answering</h1>
 <p>The request reached the tuzy agent, but the agent could not get a response from the local service at <code>{{.Target}}</code>. The error was:</p>
 <pre>{{.Detail}}</pre>
@@ -76,7 +76,11 @@ section p{color:var(--muted)}
 
 <section>
 <h2>If you run this tunnel</h2>
-<p>On the machine running <code>tuzy</code>, make sure a service is listening on <code>{{.Target}}</code>. Open it in a browser or run <code>curl {{.Target}}</code> to check that it responds, then reload this page.</p>
+{{if eq .Kind "dns"}}<p>The host in <code>{{.Target}}</code> does not resolve on the machine running <code>tuzy</code>. Check its spelling, or use <code>localhost</code> or an IP address, then reload this page.</p>
+{{else if eq .Kind "tls"}}<p>The agent reached <code>{{.Target}}</code>, but the TLS handshake failed. If your app uses a self-signed certificate, run <code>tuzy</code> with <code>--upstream-insecure</code>; if it serves plain HTTP, use an <code>http://</code> target instead.</p>
+{{else if eq .Kind "timeout"}}<p>Connecting to <code>{{.Target}}</code> timed out. Check that your app is not stuck and that no firewall blocks the port, then reload this page.</p>
+{{else}}<p>On the machine running <code>tuzy</code>, make sure a service is listening on <code>{{.Target}}</code>. Open it in a browser or run <code>curl {{.Target}}</code> to check that it responds, then reload this page.</p>
+{{end}}
 </section>
 
 <section>
@@ -84,7 +88,7 @@ section p{color:var(--muted)}
 <p>The site is temporarily unavailable. Wait a moment and <a href="">reload the page</a>. If it keeps happening, contact the owner of this site.</p>
 </section>
 
-<p class="meta">Served by the tuzy agent, not by the tunnel's app.</p>
+<p class="meta">Error {{.Code}} · served by the tuzy agent, not by the tunnel's app · <a href="{{.Docs}}">What does this mean?</a></p>
 </main>
 </body>
 </html>

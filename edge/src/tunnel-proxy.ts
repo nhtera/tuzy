@@ -19,11 +19,7 @@ export async function proxyToTunnel(request: Request, env: Env, ctx: ExecutionCo
   if (url.pathname.startsWith(RESERVED_PREFIX)) return reservedPath(request, env, name, url);
 
   const rl = await env.RL_TUNNEL.limit({ key: name });
-  if (!rl.success) {
-    const res = statusPage("rate_limited");
-    res.headers.set("retry-after", "10");
-    return res;
-  }
+  if (!rl.success) return statusPage("rate_limited");
 
   // Meta is read BEFORE stripping, then re-set under edge-owned names.
   const remoteIp = request.headers.get("cf-connecting-ip") ?? "";

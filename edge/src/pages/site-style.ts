@@ -13,6 +13,7 @@ export const BASE_CSS = `:root{color-scheme:light dark;
 --accent:#0a7a4b;--accent-hover:#086a41;--accent-ink:#fff;--accent-soft:rgba(10,122,75,.08);--accent-line:rgba(10,122,75,.28);
 --ink:#121316;--ink-2:#1b1c20;--ink-text:#e7e7ea;--ink-dim:#9a9aa3;--ink-accent:#4ad295;--ink-warn:#f0b54a;
 --warn-soft:rgba(180,120,10,.09);--warn-line:rgba(180,120,10,.35);
+--bad:#d93036;--bad-soft:rgba(217,48,54,.06);--bad-line:rgba(217,48,54,.45);
 --shadow:0 1px 2px rgba(24,24,27,.04),0 8px 24px -12px rgba(24,24,27,.12);
 --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
 --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace}
@@ -22,6 +23,7 @@ export const BASE_CSS = `:root{color-scheme:light dark;
 --accent:#3ecf8e;--accent-hover:#5ad9a0;--accent-ink:#04170d;--accent-soft:rgba(62,207,142,.09);--accent-line:rgba(62,207,142,.3);
 --ink:#131418;--ink-2:#1e1f24;
 --warn-soft:rgba(240,181,74,.08);--warn-line:rgba(240,181,74,.3);
+--bad:#f26268;--bad-soft:rgba(242,98,104,.08);--bad-line:rgba(242,98,104,.45);
 --shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -16px rgba(0,0,0,.6)}}
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}

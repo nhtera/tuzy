@@ -295,9 +295,7 @@ export class HttpStream {
     if (notifyAgent) this.sendSafe(encodeJsonFrame(FrameType.RESET, this.id, { code, message: code }));
     if (!this.headDone) {
       this.headDone = true;
-      const fallback: StatusPage =
-        code === "head_timeout" || code === "credit_timeout" || code === "stream_timeout" || code === "long_stream_budget" ? "timeout" : "bad_gateway";
-      this.resolveHead(statusPage(page ?? fallback));
+      this.resolveHead(statusPage(page ?? resetPage(code)));
     } else {
       void this.writer?.abort(code).catch(() => {});
     }
@@ -322,4 +320,15 @@ export class HttpStream {
       // Agent socket gone; its close handler fails the stream.
     }
   }
+}
+
+/**
+ * The visitor page for a stream reset before the response head. In practice only head_timeout and
+ * credit_timeout fire that early (the stream limits run from the same start, but later), and a
+ * stream cut after its head just ends: the visitor already has the app's status.
+ */
+export function resetPage(code: ResetCode): StatusPage {
+  return code === "head_timeout" || code === "credit_timeout" || code === "stream_timeout" || code === "long_stream_budget"
+    ? "timeout"
+    : "bad_gateway";
 }

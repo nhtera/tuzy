@@ -61,3 +61,51 @@ TLS interception or a WebSocket failure, ask IT to exempt `tuzy.dev`.
 `tuzy update` verifies the release signature and checksum and replaces the binary in one step.
 Homebrew, Scoop and `go install` users get told the right command instead. Turn off the
 once-a-day update notice with `TUZY_NO_UPDATE_CHECK=1` or `update_check = false`.
+
+## Errors
+
+When a request can't reach your app, the visitor sees an error page served by tuzy itself (not by
+your app). Every such page has a code: on the page, in the `tuzy-error` response header, and as a
+heading below. Browsers get an HTML page that shows where the request stopped. `curl`, webhook
+senders and other clients get one line, e.g. `tuzy: tunnel offline (TUZY-502-AGENT-OFFLINE)`.
+Pages served by the edge also carry `x-tuzy-edge: 1`, which your app can't set, so that header
+(not `tuzy-error`) is the one to trust when telling tuzy's errors from your app's.
+
+### TUZY-502-LOCAL-UNREACHABLE
+The tunnel is up, but the agent could not connect to your local app. Start the app, or check that
+the port or address you gave `tuzy http` is the one it listens on (`curl http://localhost:3000`).
+For an `https://` target with a self-signed certificate, add `--upstream-insecure`; if the app
+speaks plain HTTP, use an `http://` target.
+
+### TUZY-502-AGENT-OFFLINE
+No agent is connected for this name. Run `tuzy http <port> --name <name>` (or `tuzy start`) on the
+machine that serves the site. Clients may retry after the `Retry-After` delay.
+
+### TUZY-502-AGENT-RESTARTING
+The agent is shutting down or reconnecting (for example during an edge redeploy). It clears by
+itself within seconds. If it doesn't, restart `tuzy`.
+
+### TUZY-502-BAD-RESPONSE
+The agent's reply broke the tunnel protocol or the stream was cancelled. Check the `tuzy` output
+and update it with `tuzy update`.
+
+### TUZY-504-LOCAL-TIMEOUT
+Your app did not start its response within 300 seconds, or stopped reading the request body for
+30 seconds. A stream cut later by a stream limit (see Limits above) just ends; there is no page.
+
+### TUZY-503-TUNNEL-BUSY
+Too many requests are in flight on this tunnel at once, usually because the app is slow to
+answer. Retry after the `Retry-After` delay.
+
+### TUZY-429-RATE-LIMITED
+The tunnel received more than 600 requests in 10 seconds. Retry after the `Retry-After` delay.
+
+### TUZY-431-HEADERS-TOO-LARGE
+The request headers (usually cookies) are too large to relay. Clear the site's cookies.
+
+### TUZY-404-TUNNEL-NOT-FOUND
+There is no tunnel at this address. Check the name.
+
+### TUZY-451-TUNNEL-SUSPENDED
+The tunnel was suspended under the acceptable use policy. Contact abuse@tuzy.dev if you think this
+is a mistake.
