@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Local service unreachable · tuzy</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a7a4b'/%3E%3Ctext x='16' y='23' text-anchor='middle' font-family='ui-monospace,Menlo,monospace' font-size='21' font-weight='700' fill='%23fff'%3Et%3C/text%3E%3C/svg%3E">
+<style>
+/* A subset of the design tokens in edge/src/pages/site-style.ts (keep in sync), plus agent-only --bad* error tokens. */
+:root{color-scheme:light dark;
+--bg:#fbfbfc;--surface:#fff;--surface-2:#f3f4f6;--border:#e4e4e7;--border-strong:#d4d4d8;
+--text:#18181b;--muted:#52525b;--faint:#6b6b75;--accent:#0a7a4b;--accent-hover:#086a41;
+--bad:#d93036;--bad-soft:rgba(217,48,54,.06);--bad-line:rgba(217,48,54,.45);
+--shadow:0 1px 2px rgba(24,24,27,.04),0 8px 24px -12px rgba(24,24,27,.12);
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace}
+@media(prefers-color-scheme:dark){:root{
+--bg:#0b0c0e;--surface:#121316;--surface-2:#18191d;--border:#24252a;--border-strong:#303137;
+--text:#ececef;--muted:#a3a3ad;--faint:#8c8c96;--accent:#3ecf8e;--accent-hover:#5ad9a0;
+--bad:#f26268;--bad-soft:rgba(242,98,104,.08);--bad-line:rgba(242,98,104,.45);
+--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 32px -16px rgba(0,0,0,.6)}}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:1.5rem 1rem;background:var(--bg);color:var(--text);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{color:var(--accent-hover)}
+h1,h2{line-height:1.15;letter-spacing:-.02em;margin:0 0 .6em;text-wrap:balance}
+p{margin:0 0 1em}
+code{font-family:var(--mono);font-size:.9em;background:var(--surface-2);border:1px solid var(--border);padding:.08em .35em;border-radius:6px;overflow-wrap:anywhere}
+main{width:100%;max-width:42rem}
+.brand{display:inline-flex;align-items:center;gap:.45rem;font:700 .95rem/1 var(--mono);color:var(--text);margin-bottom:1.6rem}
+.brand::before{content:"";width:.6rem;height:.6rem;border-radius:3px;background:var(--accent)}
+
+/* Request path: Visitor → tuzy edge → tuzy agent ✕ Your service */
+.path{list-style:none;margin:0 0 1.8rem;padding:0;display:grid;grid-template-columns:repeat(4,1fr);text-align:center}
+.path li{position:relative;display:flex;flex-direction:column;align-items:center;gap:.55rem;color:var(--accent);font:600 .85rem/1.25 var(--sans)}
+.path svg{width:2rem;height:2rem;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.path .dot{position:relative;z-index:1;width:.7rem;height:.7rem;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px var(--bg)}
+.path li+li::before{content:"";position:absolute;top:calc(2.55rem + .35rem - 1.5px);left:-50%;right:50%;height:3px;border-radius:2px;background:var(--accent)}
+.path .label{color:var(--text)}
+.path .down{color:var(--faint)}
+.path .down .label{color:var(--faint)}
+.path .down::before{background:var(--border-strong)}
+.path .x{position:absolute;z-index:2;top:calc(2.55rem + .35rem);left:0;transform:translate(-50%,-50%);width:1.5rem;height:1.5rem;border-radius:50%;background:var(--bad);color:#fff;display:grid;place-items:center;box-shadow:0 0 0 4px var(--bg)}
+.path .x svg{width:.8rem;height:.8rem;stroke-width:2.6}
+
+.alert{background:var(--surface);border:1px solid var(--bad-line);border-left:4px solid var(--bad);border-radius:12px;padding:clamp(1.1rem,4vw,1.6rem);box-shadow:var(--shadow);margin:0 0 2rem}
+.alert .code{font:700 .8rem/1 var(--mono);color:var(--bad);letter-spacing:.02em;margin:0 0 .7rem}
+.alert h1{font-size:clamp(1.35rem,4.5vw,1.7rem)}
+.alert pre{margin:0;padding:.75rem .9rem;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;font:.85rem/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+section{margin:0 0 1.6rem}
+section h2{font-size:1.1rem}
+section p{color:var(--muted)}
+.meta{font:500 .8rem/1.4 var(--mono);color:var(--faint);margin:2rem 0 0;padding-top:1.1rem;border-top:1px solid var(--border)}
+@media(max-width:26rem){.path li{font-size:.75rem}.path svg{width:1.7rem;height:1.7rem}}
+</style>
+</head>
+<body>
+<main>
+<span class="brand">tuzy</span>
+
+<ol class="path" aria-label="Request path">
+<li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18h2"/></svg><span class="dot"></span><span class="label">Visitor</span></li>
+<li><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5s1.3-6.7 3.9-9.5z"/></svg><span class="dot"></span><span class="label">tuzy edge</span></li>
+<li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="3.5" width="19" height="17" rx="2.5"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/></svg><span class="dot"></span><span class="label">tuzy agent</span></li>
+<li class="down"><span class="x" role="img" aria-label="connection failed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="2.5" width="16" height="19" rx="2"/><path d="M4 8.5h16M4 14.5h16M8 5.5h1M8 11.5h1M8 17.5h1"/></svg><span class="dot"></span><span class="label">Your service</span></li>
+</ol>
+
+<div class="alert" role="alert">
+<p class="code">502 · LOCAL SERVICE UNREACHABLE</p>
+<h1>The tunnel is up, but the app behind it isn't answering</h1>
+<p>The request reached the tuzy agent, but the agent could not get a response from the local service at <code>{{.Target}}</code>. The error was:</p>
+<pre>{{.Detail}}</pre>
+</div>
+
+<section>
+<h2>If you run this tunnel</h2>
+<p>On the machine running <code>tuzy</code>, make sure a service is listening on <code>{{.Target}}</code>. Open it in a browser or run <code>curl {{.Target}}</code> to check that it responds, then reload this page.</p>
+</section>
+
+<section>
+<h2>If you're visiting this site</h2>
+<p>The site is temporarily unavailable. Wait a moment and <a href="">reload the page</a>. If it keeps happening, contact the owner of this site.</p>
+</section>
+
+<p class="meta">Served by the tuzy agent, not by the tunnel's app.</p>
+</main>
+</body>
+</html>
