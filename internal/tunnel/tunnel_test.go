@@ -367,7 +367,8 @@ func TestLocalUnreachableBrowserGetsHTMLPage(t *testing.T) {
 		t.Fatalf("headers %v", head.Headers)
 	}
 	page := string(body)
-	for _, want := range []string{"<!doctype html>", "Your service", "http://127.0.0.1:1", "connection refused"} {
+	// The dial error itself; its wording is OS-specific ("connection refused" vs Windows "connectex: ...").
+	for _, want := range []string{"<!doctype html>", "Your service", "http://127.0.0.1:1", "dial tcp 127.0.0.1:1"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page missing %q", want)
 		}
