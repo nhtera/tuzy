@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"regexp"
 	"strings"
 	"syscall"
 	"testing"
@@ -101,5 +103,32 @@ func TestDialKindTLSToPlainHTTP(t *testing.T) {
 	}
 	if got := dialKind(err); got != "tls" {
 		t.Fatalf("dialKind(%v) = %q", err, got)
+	}
+}
+
+// Every error code the agent and the edge send has a heading in docs/limits-and-faq.md, so the
+// pages' "What does this mean?" link lands on it.
+func TestErrorCodesDocumented(t *testing.T) {
+	read := func(p string) string {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	docs := read("../../docs/limits-and-faq.md")
+	codes := regexp.MustCompile(`TUZY-\d{3}-[A-Z-]*[A-Z]`)
+	found := codes.FindAllString(read("../../edge/src/pages/status-pages.ts"), -1)
+	found = append(found, localUnreachableCode)
+	if len(found) < 10 {
+		t.Fatalf("only %d codes found in status-pages.ts", len(found))
+	}
+	for _, code := range found {
+		if !strings.Contains(docs, "\n### "+code+"\n") {
+			t.Errorf("docs/limits-and-faq.md has no heading for %s", code)
+		}
+	}
+	if !strings.HasSuffix(localUnreachableDocs, "#"+strings.ToLower(localUnreachableCode)) {
+		t.Errorf("docs link %s does not point at %s", localUnreachableDocs, localUnreachableCode)
 	}
 }
