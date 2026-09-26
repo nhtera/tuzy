@@ -349,6 +349,35 @@ func TestLocalUnreachableIs502(t *testing.T) {
 	}
 }
 
+func TestLocalUnreachableBrowserGetsHTMLPage(t *testing.T) {
+	edge := newFakeEdge(t)
+	startAgent(t, edge.url(), "http://127.0.0.1:1")
+	ec := edge.next(3 * time.Second)
+	s := ec.open("GET", "/secret?q=<script>", "http", protocol.Header{"accept", "text/html,application/xhtml+xml,*/*;q=0.8"})
+	ec.send(protocol.Encode(protocol.ReqEnd, s.id, nil))
+	head, body := s.response(t, 5*time.Second)
+	if head.Status != 502 {
+		t.Fatalf("status %d", head.Status)
+	}
+	hs := map[string]string{}
+	for _, h := range head.Headers {
+		hs[h[0]] = h[1]
+	}
+	if !strings.HasPrefix(hs["content-type"], "text/html") || hs["cache-control"] != "no-store" || hs["content-security-policy"] == "" {
+		t.Fatalf("headers %v", head.Headers)
+	}
+	page := string(body)
+	for _, want := range []string{"<!doctype html>", "Your service", "http://127.0.0.1:1", "connection refused"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page missing %q", want)
+		}
+	}
+	// The detail is the dial error only: the visitor's request URL is not echoed back.
+	if strings.Contains(page, "/secret") || strings.Contains(page, "<script>") {
+		t.Error("page echoes the request URL")
+	}
+}
+
 func TestHalfOpenReconnectsWithSameInstance(t *testing.T) {
 	edge := newFakeEdge(t)
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, "ok") }))

@@ -343,8 +343,8 @@ func (w *wsStream) dial() (*websocket.Conn, int, error) {
 		w.respond(resp.StatusCode, responseHeaders(resp), string(body))
 		return nil, resp.StatusCode, fmt.Errorf("local websocket refused: %s", resp.Status)
 	}
-	w.respond(http.StatusBadGateway, []protocol.Header{{"content-type", "text/plain; charset=utf-8"}},
-		fmt.Sprintf("tuzy: could not reach %s\n", w.s.cfg.target))
+	headers, body := unreachableResponse(w.head.Headers, w.s.cfg.target, err)
+	w.respond(http.StatusBadGateway, headers, body)
 	return nil, http.StatusBadGateway, err
 }
 

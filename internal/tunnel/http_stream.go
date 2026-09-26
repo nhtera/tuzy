@@ -185,7 +185,7 @@ func (h *httpStream) run() {
 	req, err := h.buildRequest(pr)
 	if err != nil {
 		entry.Status, entry.Err = 502, err.Error()
-		h.sendLocalError(fmt.Sprintf("tuzy: bad request for local target: %v\n", err))
+		h.sendLocalError(plainText(), fmt.Sprintf("tuzy: bad request for local target: %v\n", err))
 		return
 	}
 	if req.Body == http.NoBody {
@@ -198,7 +198,7 @@ func (h *httpStream) run() {
 			return
 		}
 		entry.Status, entry.Err = 502, err.Error()
-		h.sendLocalError(fmt.Sprintf("tuzy: could not reach %s\n", h.s.cfg.target))
+		h.sendLocalError(unreachableResponse(h.head.Headers, h.s.cfg.target, err))
 		return
 	}
 	// A dev server that refuses the public Host (Vite allowedHosts, webpack "Invalid Host header",
@@ -278,8 +278,11 @@ func (h *httpStream) watchEarlyResponse(pr *io.PipeReader) {
 	}
 }
 
-func (h *httpStream) sendLocalError(body string) {
-	headers := []protocol.Header{{"content-type", "text/plain; charset=utf-8"}}
+func plainText() []protocol.Header {
+	return []protocol.Header{{"content-type", "text/plain; charset=utf-8"}}
+}
+
+func (h *httpStream) sendLocalError(headers []protocol.Header, body string) {
 	h.rec.Response(http.StatusBadGateway, headers)
 	h.rec.ResponseBody([]byte(body))
 	h.s.sendSmallResponse(h.ctx, h.id, h.sendCredit, http.StatusBadGateway, headers, body)
