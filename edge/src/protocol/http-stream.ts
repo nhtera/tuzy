@@ -295,9 +295,7 @@ export class HttpStream {
     if (notifyAgent) this.sendSafe(encodeJsonFrame(FrameType.RESET, this.id, { code, message: code }));
     if (!this.headDone) {
       this.headDone = true;
-      const fallback: StatusPage =
-        code === "head_timeout" || code === "credit_timeout" || code === "stream_timeout" || code === "long_stream_budget" ? "timeout" : "bad_gateway";
-      this.resolveHead(statusPage(page ?? fallback));
+      this.resolveHead(statusPage(page ?? resetPage(code)));
     } else {
       void this.writer?.abort(code).catch(() => {});
     }
@@ -322,4 +320,11 @@ export class HttpStream {
       // Agent socket gone; its close handler fails the stream.
     }
   }
+}
+
+/** The visitor page for a stream reset before the response head: a slow app vs a stream cut by its time limit. */
+export function resetPage(code: ResetCode): StatusPage {
+  if (code === "head_timeout" || code === "credit_timeout") return "timeout";
+  if (code === "stream_timeout" || code === "long_stream_budget") return "stream_limit";
+  return "bad_gateway";
 }
