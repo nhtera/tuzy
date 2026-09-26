@@ -2,8 +2,16 @@ package tunnel
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -34,5 +42,64 @@ func TestUnreachableResponseRedactsPassword(t *testing.T) {
 		if strings.Contains(body, "hunter2") {
 			t.Errorf("accept %q: password in body", accept)
 		}
+	}
+}
+
+func TestUnreachableResponseCarriesCode(t *testing.T) {
+	u, _ := url.Parse("http://localhost:3000")
+	for _, accept := range []string{"text/html", "*/*"} {
+		headers, body := unreachableResponse([]protocol.Header{{"accept", accept}}, u, errors.New("boom"))
+		var code string
+		for _, h := range headers {
+			if h[0] == "tuzy-error" {
+				code = h[1]
+			}
+		}
+		if code != "TUZY-502-LOCAL-UNREACHABLE" || !strings.Contains(body, code) {
+			t.Errorf("accept %q: header %q, body %q", accept, code, body)
+		}
+	}
+}
+
+type timeoutErr struct{}
+
+func (timeoutErr) Error() string   { return "i/o timeout" }
+func (timeoutErr) Timeout() bool   { return true }
+func (timeoutErr) Temporary() bool { return true }
+
+func TestDialKind(t *testing.T) {
+	op := func(err error) error { return &net.OpError{Op: "dial", Net: "tcp", Err: err} }
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"nil", nil, ""},
+		{"refused", op(syscall.ECONNREFUSED), ""},
+		{"other", errors.New("x"), ""},
+		{"dns", op(&net.DNSError{Err: "no such host", Name: "nope.invalid", IsNotFound: true}), "dns"},
+		{"dns timeout is still dns", op(&net.DNSError{Err: "timeout", IsTimeout: true}), "dns"},
+		{"unknown authority", fmt.Errorf("wrapped: %w", x509.UnknownAuthorityError{}), "tls"},
+		{"hostname", &tls.CertificateVerificationError{Err: x509.HostnameError{Host: "x"}}, "tls"},
+		{"timeout", op(timeoutErr{}), "timeout"},
+		{"visitor url wrapper", &url.Error{Op: "Get", URL: "http://x/", Err: op(timeoutErr{})}, "timeout"},
+	} {
+		if got := dialKind(tc.err); got != tc.want {
+			t.Errorf("%s: dialKind = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// An https:// target that speaks plain HTTP fails the handshake with a RecordHeaderError: the
+// page must suggest an http:// target, not the default "is it running?" hint.
+func TestDialKindTLSToPlainHTTP(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer srv.Close()
+	_, err := (&http.Transport{}).RoundTrip(httptest.NewRequest("GET", strings.Replace(srv.URL, "http://", "https://", 1), nil))
+	if err == nil {
+		t.Fatal("TLS to a plain HTTP server succeeded")
+	}
+	if got := dialKind(err); got != "tls" {
+		t.Fatalf("dialKind(%v) = %q", err, got)
 	}
 }

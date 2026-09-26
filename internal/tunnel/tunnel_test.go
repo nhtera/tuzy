@@ -363,12 +363,14 @@ func TestLocalUnreachableBrowserGetsHTMLPage(t *testing.T) {
 	for _, h := range head.Headers {
 		hs[h[0]] = h[1]
 	}
-	if !strings.HasPrefix(hs["content-type"], "text/html") || hs["cache-control"] != "no-store" || hs["content-security-policy"] == "" {
+	if !strings.HasPrefix(hs["content-type"], "text/html") || hs["cache-control"] != "no-store" || hs["content-security-policy"] == "" ||
+		hs["tuzy-error"] != "TUZY-502-LOCAL-UNREACHABLE" {
 		t.Fatalf("headers %v", head.Headers)
 	}
 	page := string(body)
 	// The dial error itself; its wording is OS-specific ("connection refused" vs Windows "connectex: ...").
-	for _, want := range []string{"<!doctype html>", "Your service", "http://127.0.0.1:1", "dial tcp 127.0.0.1:1"} {
+	for _, want := range []string{"<!doctype html>", "Your service", "http://127.0.0.1:1", "dial tcp 127.0.0.1:1",
+		"502 · TUZY-502-LOCAL-UNREACHABLE", "limits-and-faq.md#tuzy-502-local-unreachable", "make sure a service is listening"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page missing %q", want)
 		}
