@@ -43,6 +43,33 @@ describe("worker routing", () => {
     expect(res.headers.get("x-tuzy-edge")).toBe("1");
   });
 
+  it("answers non-browsers with one plain-text line, browsers with the page", async () => {
+    const BROWSER = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8";
+    for (const accept of [undefined, "*/*", "application/json"]) {
+      const res = await get("https://ghost.tuzy.dev/", "ghost.tuzy.dev", accept ? { headers: { accept } } : {});
+      expect(res.status, accept).toBe(502);
+      expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+      expect(res.headers.get("tuzy-error")).toBe("TUZY-502-AGENT-OFFLINE");
+      expect(res.headers.get("retry-after")).toBe("5");
+      expect(res.headers.get("x-tuzy-edge")).toBe("1");
+      expect(res.headers.get("content-security-policy")).toBeNull();
+      expect(await res.text()).toBe("tuzy: tunnel offline (TUZY-502-AGENT-OFFLINE)\n");
+    }
+    const page = await get("https://ghost.tuzy.dev/", "ghost.tuzy.dev", { headers: { accept: BROWSER } });
+    expect(page.status).toBe(502);
+    expect(page.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await page.text()).toContain("TUZY-502-AGENT-OFFLINE");
+
+    const notFound = await get("https://x/", "example.com");
+    expect(await notFound.text()).toBe("tuzy: tunnel not found (TUZY-404-TUNNEL-NOT-FOUND)\n");
+  });
+
+  it("leaves API errors alone", async () => {
+    const res = await get("https://tuzy.dev/api/v1/nope", "tuzy.dev");
+    expect(res.headers.get("tuzy-error")).toBeNull();
+    expect(await res.json()).toMatchObject({ error: { code: "not_found" } });
+  });
+
   it("reserves /__tuzy/ on tunnel hosts", async () => {
     const res = await get("https://ghost.tuzy.dev/__tuzy/x", "ghost.tuzy.dev");
     expect(res.status).toBe(404);

@@ -163,6 +163,27 @@ ${PAGE_CSS}</style></head><body><main><span class="brand">tuzy</span>${p.breakAt
   return new Response(html, { status: p.status, headers });
 }
 
+const PAGE_BY_CODE = new Map(Object.values(PAGES).map((p) => [p.code, p]));
+
+const acceptsHtml = (req: Request) => (req.headers.get("accept") ?? "").toLowerCase().includes("text/html");
+
+/**
+ * Non-browser clients (curl, webhook senders, WebSocket handshakes) get one plain-text line instead
+ * of an edge status page, with the same status and headers. Applied once at the Worker entry, so it
+ * covers pages built in the Worker and in the Durable Object alike. Responses from the tunnel's app
+ * are never touched: the edge strips `x-tuzy-*` from them, so they can't carry `x-tuzy-edge`.
+ */
+export function negotiateStatusPage(req: Request, res: Response): Response {
+  const code = res.headers.get("tuzy-error");
+  const page = code ? PAGE_BY_CODE.get(code) : undefined;
+  if (!page || res.headers.get("x-tuzy-edge") !== "1" || acceptsHtml(req)) return res;
+  void res.body?.cancel();
+  const headers = new Headers(res.headers);
+  headers.set("content-type", "text/plain; charset=utf-8");
+  headers.delete("content-security-policy");
+  return new Response(`tuzy: ${page.title.toLowerCase()} (${page.code})\n`, { status: res.status, headers });
+}
+
 /** Every page's status and code, for the docs check and tests. */
 export const STATUS_PAGES: Readonly<Record<StatusPage, Readonly<{ status: number; code: string }>>> = PAGES;
 
