@@ -84,6 +84,7 @@ func TestDialKind(t *testing.T) {
 		{"unknown authority", fmt.Errorf("wrapped: %w", x509.UnknownAuthorityError{}), "tls"},
 		{"hostname", &tls.CertificateVerificationError{Err: x509.HostnameError{Host: "x"}}, "tls"},
 		{"timeout", op(timeoutErr{}), "timeout"},
+		{"windows connect timeout", op(os.NewSyscallError("connectex", syscall.Errno(10060))), "timeout"},
 		{"visitor url wrapper", &url.Error{Op: "Get", URL: "http://x/", Err: op(timeoutErr{})}, "timeout"},
 	} {
 		if got := dialKind(tc.err); got != tc.want {
@@ -123,9 +124,16 @@ func TestErrorCodesDocumented(t *testing.T) {
 	if len(found) < 10 {
 		t.Fatalf("only %d codes found in status-pages.ts", len(found))
 	}
+	sent := map[string]bool{}
 	for _, code := range found {
+		sent[code] = true
 		if !strings.Contains(docs, "\n### "+code+"\n") {
 			t.Errorf("docs/limits-and-faq.md has no heading for %s", code)
+		}
+	}
+	for _, m := range regexp.MustCompile(`(?m)^### (TUZY-\S+)$`).FindAllStringSubmatch(docs, -1) {
+		if !sent[m[1]] {
+			t.Errorf("docs/limits-and-faq.md documents %s, which nothing sends", m[1])
 		}
 	}
 	if !strings.HasSuffix(localUnreachableDocs, "#"+strings.ToLower(localUnreachableCode)) {

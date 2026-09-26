@@ -46,11 +46,11 @@ describe("status pages", () => {
     expect(html).not.toContain("<script>alert");
   });
 
-  it("tells a slow app from a stream cut by its time limit", () => {
-    expect(resetPage("head_timeout")).toBe("timeout");
-    expect(resetPage("credit_timeout")).toBe("timeout");
-    expect(resetPage("stream_timeout")).toBe("stream_limit");
-    expect(resetPage("long_stream_budget")).toBe("stream_limit");
+  it("maps early resets to the timeout page, everything else to bad gateway", () => {
+    for (const code of ["head_timeout", "credit_timeout", "stream_timeout", "long_stream_budget"] as const) {
+      expect(resetPage(code)).toBe("timeout");
+    }
     expect(resetPage("protocol_error")).toBe("bad_gateway");
+    expect(resetPage("cancelled")).toBe("bad_gateway");
   });
 });

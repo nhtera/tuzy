@@ -68,7 +68,8 @@ When a request can't reach your app, the visitor sees an error page served by tu
 your app). Every such page has a code: on the page, in the `tuzy-error` response header, and as a
 heading below. Browsers get an HTML page that shows where the request stopped. `curl`, webhook
 senders and other clients get one line, e.g. `tuzy: tunnel offline (TUZY-502-AGENT-OFFLINE)`.
-Pages served by the edge also carry `x-tuzy-edge: 1`.
+Pages served by the edge also carry `x-tuzy-edge: 1`, which your app can't set, so that header
+(not `tuzy-error`) is the one to trust when telling tuzy's errors from your app's.
 
 ### TUZY-502-LOCAL-UNREACHABLE
 The tunnel is up, but the agent could not connect to your local app. Start the app, or check that
@@ -89,11 +90,8 @@ The agent's reply broke the tunnel protocol or the stream was cancelled. Check t
 and update it with `tuzy update`.
 
 ### TUZY-504-LOCAL-TIMEOUT
-Your app did not send the first byte of its response within 300 seconds.
-
-### TUZY-504-STREAM-LIMIT
-The request ran past a stream limit: 1 hour per stream, or the monthly long-stream time (see
-Limits above).
+Your app did not start its response within 300 seconds, or stopped reading the request body for
+30 seconds. A stream cut later by a stream limit (see Limits above) just ends; there is no page.
 
 ### TUZY-503-TUNNEL-BUSY
 Too many requests are in flight on this tunnel at once, usually because the app is slow to

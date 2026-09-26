@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"syscall"
 
 	"github.com/nhtera/tuzy/internal/protocol"
 )
@@ -51,6 +52,9 @@ func unreachableResponse(reqHeaders []protocol.Header, target *url.URL, err erro
 	}, b.String()
 }
 
+// wsaETimedOut is Windows' connect timeout (WSAETIMEDOUT), which its Errno.Timeout() doesn't report.
+const wsaETimedOut = syscall.Errno(10060)
+
 // dialKind picks the page's fix-it hint: "dns", "tls" or "timeout"; "" for everything else
 // (above all a refused connection, whose wording differs per OS, so it is the default hint).
 func dialKind(err error) string {
@@ -69,7 +73,7 @@ func dialKind(err error) string {
 	case errors.As(err, &recErr), errors.As(err, &verifyErr), errors.As(err, &authErr),
 		errors.As(err, &hostErr), errors.As(err, &invalidErr):
 		return "tls"
-	case errors.As(err, &netErr) && netErr.Timeout():
+	case errors.As(err, &netErr) && netErr.Timeout(), errors.Is(err, wsaETimedOut):
 		return "timeout"
 	}
 	return ""

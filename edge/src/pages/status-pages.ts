@@ -12,7 +12,6 @@ export type StatusPage =
   | "offline"
   | "draining"
   | "timeout"
-  | "stream_limit"
   | "busy"
   | "bad_gateway"
   | "suspended"
@@ -78,17 +77,9 @@ const PAGES: Record<StatusPage, PageSpec> = {
     code: "TUZY-504-LOCAL-TIMEOUT",
     title: "Gateway timeout",
     body: "The request reached the tunnel, but the local app did not start answering in time.",
-    owner: "Your app must send the first byte of its response within 300 seconds. Check it for slow or stuck requests.",
+    owner: "Your app must start its response within 300 seconds, and must not stop reading a request body for more than 30 seconds. Check it for slow or stuck requests.",
     visitor: RELOAD,
     breakAt: "service",
-  },
-  stream_limit: {
-    status: 504,
-    code: "TUZY-504-STREAM-LIMIT",
-    title: "Stream time limit reached",
-    body: "This request ran longer than tuzy allows for a single stream and was stopped.",
-    owner: "A single HTTP stream may stay open for up to 1 hour, and streams open longer than 5 minutes count toward your monthly long-stream time (<code>tuzy whoami</code> shows usage).",
-    visitor: RELOAD,
   },
   busy: {
     status: 503,

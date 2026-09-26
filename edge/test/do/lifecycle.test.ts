@@ -101,6 +101,9 @@ describe("timeouts and caps", () => {
     const res = await visit("headto", "/hang");
     expect(res.status).toBe(504);
     expect(Date.now() - t0).toBeGreaterThanOrEqual(2_900);
+    // Built in the DO, negotiated at the Worker entry: no Accept, so one plain-text line.
+    expect(res.headers.get("tuzy-error")).toBe("TUZY-504-LOCAL-TIMEOUT");
+    expect(await res.text()).toBe("tuzy: gateway timeout (TUZY-504-LOCAL-TIMEOUT)\n");
     const reset = await a.next((f) => f.type === FrameType.RESET);
     expect(reset.json).toMatchObject({ code: "head_timeout" });
     a.close();
